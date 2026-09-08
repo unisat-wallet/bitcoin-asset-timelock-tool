@@ -706,11 +706,7 @@ function App() {
         )}
         <WalletInfoCard
           address={wallet.address}
-          pubKey={wallet.pubKey}
           chain={wallet.chain}
-          walletBalance={walletBalance}
-          totalWalletSatoshi={walletUtxos.totalSatoshi}
-          walletUtxoCount={walletUtxos.utxos.length}
           openApiKey={openApiKey}
           onOpenApiKeyChange={handleOpenApiKeyChange}
           onSwitchChain={handleSwitchChain}
