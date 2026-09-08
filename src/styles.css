@@ -118,6 +118,48 @@ input {
   width: 100%;
 }
 
+.form-field.fee-rate-field {
+  flex: 0 0 280px;
+}
+
+.fee-rate-field .ant-input-number {
+  width: 100%;
+}
+
+.field-hint {
+  display: block;
+  margin-top: 6px;
+  color: #667085;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.configuration-form {
+  display: grid;
+  gap: 14px;
+}
+
+.configuration-row {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  align-items: center;
+  gap: 14px;
+}
+
+.configuration-row .field-label {
+  margin: 0;
+}
+
+.configuration-row .ant-input-number {
+  width: 280px;
+}
+
+.configuration-action {
+  margin-top: 18px;
+  text-align: right;
+}
+
+
 .mt-16 {
   margin-top: 16px;
 }
@@ -242,6 +284,20 @@ input {
   .form-row {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .configuration-row {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  .configuration-row .ant-input-number {
+    width: 100%;
+  }
+
+  .configuration-action {
+    margin-left: 0;
+    text-align: right;
   }
 
   .grid {

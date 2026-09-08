@@ -3,12 +3,11 @@ import {
   LinkOutlined,
   WalletOutlined,
 } from "@ant-design/icons";
-import { Alert, Button, Space, Spin, Typography, message } from "antd";
+import { Alert, Button, Descriptions, Modal, Space, Spin, Typography, message } from "antd";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
   AddressBalance,
   AssetKind,
-  BuiltTimeLockTx,
   OpenApiUtxo,
   ResultState,
   RuneIndexerEntry,
@@ -179,14 +178,12 @@ function App() {
   const [walletBalance, setWalletBalance] = useState<AddressBalance | null>(
     null,
   );
-  const [builtTx, setBuiltTx] = useState<BuiltTimeLockTx | null>(null);
   const [result, setResult] = useState<ResultState>({ status: "idle" });
   const [loadingText, setLoadingText] = useState("");
   const [records, setRecords] = useState<TimeLockRecord[]>(readRecords);
   const feeRateManuallySet = useRef(false);
 
   const resetBuiltState = useCallback(() => {
-    setBuiltTx(null);
     setResult({ status: "idle" });
   }, []);
   const wallet = useWalletConnection((msg) => messageApi.error(msg));
@@ -238,8 +235,7 @@ function App() {
     assetKind === "brc20"
       ? canFetchUtxos &&
         !!ticker.trim() &&
-        !!amount.trim() &&
-        walletUtxos.listedUtxos.length > 0
+        !!amount.trim()
       : canFetchUtxos && !!runeReference.trim() && !!amount.trim();
   const loading = !!loadingText;
 
@@ -266,7 +262,7 @@ function App() {
       await wallet.switchChain(chain);
       clearLoadedData();
       messageApi.success(
-        `Switched to ${chain}. Load UTXOs for the new network.`,
+        `Switched to ${chain}. UTXOs will be refreshed when you create a deposit.`,
       );
     } catch (error) {
       messageApi.error(getErrorMessage(error));
@@ -328,14 +324,51 @@ function App() {
     ]);
   };
 
+  const confirmLock = (params: {
+    asset: string;
+    timeLockAddress: string;
+    estimatedCost: number;
+  }) =>
+    new Promise<boolean>((resolve) => {
+      Modal.confirm({
+        title: "Confirm Asset Lock",
+        width: 640,
+        content: (
+          <Descriptions column={1} bordered size="small">
+            <Descriptions.Item label="Current Network">
+              {String(wallet.chain)}
+            </Descriptions.Item>
+            <Descriptions.Item label="Current Address">
+              {wallet.address}
+            </Descriptions.Item>
+            <Descriptions.Item label="Time-lock Address">
+              {params.timeLockAddress}
+            </Descriptions.Item>
+            <Descriptions.Item label="Lock Period">
+              {lockBlocks} blocks
+            </Descriptions.Item>
+            <Descriptions.Item label="Locked Asset">
+              {params.asset}
+            </Descriptions.Item>
+            <Descriptions.Item label="Estimated Cost">
+              {params.estimatedCost} sats
+            </Descriptions.Item>
+          </Descriptions>
+        ),
+        okText: "Confirm Lock",
+        cancelText: "Cancel",
+        onOk: () => resolve(true),
+        onCancel: () => resolve(false),
+      });
+    });
+
   const handleCreate = async () => {
     if (!canCreate || !hasOpenApiKey) {
       messageApi.warning(
-        "Enter the token and amount, load wallet UTXOs, and configure an OpenAPI key.",
+        "Enter the token and amount, then configure an OpenAPI key.",
       );
       return;
     }
-    setBuiltTx(null);
     setResult({ status: "idle" });
     try {
       if (!isSupportedWalletAddress(wallet.address)) {
@@ -343,6 +376,14 @@ function App() {
           "Only native SegWit (bc1q / tb1q) and Taproot (bc1p / tb1p) wallet addresses are supported. P2PKH and P2SH are not supported.",
         );
       }
+      setLoadingText("Loading current wallet UTXOs...");
+      const currentWalletUtxos = await getAvailableUtxos(
+        wallet.address,
+        openApiKeyForRequests,
+        500,
+        wallet.chain,
+      );
+      walletUtxos.setFetchedUtxos(currentWalletUtxos);
       if (assetKind === "runes") {
         const fractal = isFractalChain(String(wallet.chain));
         if (!/^\d+:\d+$/.test(runeReference.trim())) {
@@ -381,11 +422,16 @@ function App() {
           // the wallet rather than being assigned to the lock output.
           hasUnallocatedRunes: true,
           runeUtxos: source.utxos,
-          feeUtxos: automaticFeeUtxoCandidates(walletUtxos.utxos),
+          feeUtxos: automaticFeeUtxoCandidates(currentWalletUtxos),
           feeRate,
           chain: wallet.chain,
         });
-        setBuiltTx(deposit);
+        setLoadingText("");
+        if (!(await confirmLock({
+          asset: `${amount.trim()} ${metadata.rune}`,
+          timeLockAddress: deposit.timeLockAddress,
+          estimatedCost: deposit.estimatedFee,
+        }))) return;
         setLoadingText(
           "Review and sign the Runestone time-lock transaction in UniSat...",
         );
@@ -427,7 +473,7 @@ function App() {
         "Building the five-transaction BRC-20 deposit from one UTXO...",
       );
       const fundingUtxo = selectAutomaticBrc20FundingUtxo(
-        walletUtxos.utxos,
+        currentWalletUtxos,
       );
       const deposit = buildSingleUtxoTimeLockDeposit({
         userAddress: wallet.address,
@@ -439,7 +485,12 @@ function App() {
         fundingUtxo,
         chain: wallet.chain,
       });
-      setBuiltTx(deposit);
+      setLoadingText("");
+      if (!(await confirmLock({
+        asset: `${amount.trim()} ${ticker.trim().toLowerCase()}`,
+        timeLockAddress: deposit.timeLockAddress,
+        estimatedCost: deposit.totalEstimatedFee,
+      }))) return;
       setLoadingText("Review and sign all five transactions in UniSat...");
       const signedPsbts = await signPsbtsCompat(
         deposit.steps.map((step) => step.psbtHex),
@@ -533,7 +584,6 @@ function App() {
       messageApi.warning("Enter your UniSat OpenAPI key first.");
       return;
     }
-    setBuiltTx(null);
     setResult({ status: "idle" });
     const lockInscriptionUtxo: OpenApiUtxo = {
       txid: record.inscriptionTxid,
@@ -562,7 +612,6 @@ function App() {
         feeRate,
         chain: wallet.chain,
       });
-      setBuiltTx(tx);
       setLoadingText(
         `Sign the ${record.lockBlocks}-block time-lock unlock transaction in your wallet...`,
       );
@@ -675,12 +724,8 @@ function App() {
           lockBlocks={lockBlocks}
           feeRate={feeRate}
           timeLockAddress={timeLockAddress}
-          walletBalance={walletBalance}
-          walletUtxos={walletUtxos}
           hasOpenApiKey={hasOpenApiKey}
-          canFetchUtxos={canFetchUtxos}
           canCreate={canCreate}
-          builtTx={builtTx}
           result={result}
           records={records}
           onTickerChange={(value) => {
@@ -708,7 +753,6 @@ function App() {
             setFeeRate(value);
             resetBuiltState();
           }}
-          onFetchUtxos={fetchWalletUtxos}
           onCreate={handleCreate}
           onUnlock={handleUnlock}
           onCopy={handleCopy}
