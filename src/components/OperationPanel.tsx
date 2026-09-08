@@ -3,6 +3,7 @@ import { Alert, Button, Card, Descriptions, Input, InputNumber, List, Segmented,
 import type { AddressBalance, AssetKind, BuiltTimeLockTx, ResultState, TimeLockBlocks, TimeLockRecord } from '../types'
 import type { WalletUtxoState } from '../hooks/useWalletUtxos'
 import { satoshiToFb, shortAddress } from '../lib/format'
+import { getAddressExplorerUrl, getTransactionExplorerUrl } from '../lib/explorer'
 import { TxPreview } from './TxPreview'
 import { ResultAlert } from './ResultAlert'
 
@@ -132,9 +133,9 @@ export function OperationPanel(props: Props) {
               <List.Item.Meta
                 title={<Space wrap><Tag color={record.assetKind === 'runes' ? 'purple' : 'blue'}>{record.assetKind === 'runes' ? 'Rune' : 'BRC-20'}</Tag><strong>{record.runeName || record.ticker}</strong>{record.runeId && <Tag>{record.runeId}</Tag>}<Tag>{record.amount}</Tag><Tag color="blue">{record.lockBlocks} blocks</Tag>{record.chain && <Tag>{record.chain}</Tag>}{record.status === 'unlocked' && <Tag color="success">Unlocked</Tag>}</Space>}
                 description={<Space direction="vertical" size={2}>
-                  <span>Time-lock address: <a onClick={() => props.onCopy(record.timeLockAddress, 'Time-lock address copied')}>{shortAddress(record.timeLockAddress, 12, 12)}</a></span>
-                  <span>Inscription outpoint: {shortAddress(record.inscriptionTxid, 12, 12)}:{record.inscriptionVout}</span>
-                  {record.assetKind === 'runes' && <span>Runestone lock transaction: {shortAddress(record.commitTxid, 12, 12)}</span>}
+                  <span>Time-lock address: <a href={getAddressExplorerUrl(record.timeLockAddress, record.chain)} target="_blank" rel="noreferrer">{shortAddress(record.timeLockAddress, 12, 12)}</a></span>
+                  <span>Inscription outpoint: <a href={getTransactionExplorerUrl(record.inscriptionTxid, record.chain)} target="_blank" rel="noreferrer">{shortAddress(record.inscriptionTxid, 12, 12)}:{record.inscriptionVout}</a></span>
+                  {record.assetKind === 'runes' && <span>Runestone lock transaction: <a href={getTransactionExplorerUrl(record.commitTxid, record.chain)} target="_blank" rel="noreferrer">{shortAddress(record.commitTxid, 12, 12)}</a></span>}
                   {record.initialCommitTxid && <span>1/5 Self transfer commit: {shortAddress(record.initialCommitTxid, 12, 12)}</span>}
                   {record.initialRevealTxid && <span>2/5 Self transfer reveal: {shortAddress(record.initialRevealTxid, 12, 12)}</span>}
                   {record.transferToLockTxid && <span>3/5 Send to time lock: {shortAddress(record.transferToLockTxid, 12, 12)}</span>}
