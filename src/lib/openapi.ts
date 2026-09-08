@@ -67,6 +67,33 @@ export async function getAddressBalance(address: string, apiKey?: string, chain?
   return requestOpenApi<AddressBalance>(`/address/${encodeURIComponent(address)}/balance`, apiKey, chain)
 }
 
+type Brc20Balance = {
+  ticker: string
+  availableBalance: string
+}
+
+type Brc20Summary = {
+  total?: number
+  detail?: Brc20Balance[]
+}
+
+/** Returns the address's confirmed BRC-20 available balance for a ticker. */
+export async function getBrc20AvailableBalance(address: string, ticker: string, apiKey?: string, chain?: ChainType | string): Promise<string> {
+  const normalizedTicker = ticker.trim().toLowerCase()
+  const limit = 100
+  for (let start = 0; ; start += limit) {
+    const data = await requestOpenApi<Brc20Summary>(
+      `/address/${encodeURIComponent(address)}/brc20/summary?start=${start}&limit=${limit}`,
+      apiKey,
+      chain,
+    )
+    const balances = Array.isArray(data.detail) ? data.detail : []
+    const balance = balances.find((item) => item.ticker.trim().toLowerCase() === normalizedTicker)
+    if (balance) return balance.availableBalance
+    if (balances.length < limit || start + balances.length >= (data.total || 0)) return "0"
+  }
+}
+
 export async function getAvailableUtxos(address: string, apiKey?: string, size = 500, chain?: ChainType | string): Promise<OpenApiUtxo[]> {
   const data = await requestOpenApi<{ utxo?: OpenApiUtxo[] }>(
     `/address/${encodeURIComponent(address)}/available-utxo-data?cursor=0&size=${size}`,

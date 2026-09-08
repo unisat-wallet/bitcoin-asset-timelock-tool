@@ -25,6 +25,7 @@ import {
   getAddressBalance,
   getAddressRuneUtxos,
   getAvailableUtxos,
+  getBrc20AvailableBalance,
   getRuneMetadata,
 } from "./lib/openapi";
 import { getRecommendedFeeRate } from "./lib/mempool";
@@ -81,6 +82,22 @@ function validateRuneName(name: string, fractal: boolean): string | undefined {
       ? "Fractal Runes use lowercase letters only (for example fractal)."
       : "Bitcoin Runes use uppercase letters only (for example UNCOMMONGOODS).";
   return undefined;
+}
+
+function compareDecimalAmounts(left: string, right: string): number {
+  const parse = (value: string) => {
+    const match = value.trim().match(/^(\d+)(?:\.(\d+))?$/)
+    if (!match) throw new Error(`Invalid decimal amount: ${value}`)
+    return { whole: match[1], fraction: match[2] || "" }
+  }
+  const leftParts = parse(left)
+  const rightParts = parse(right)
+  const scale = Math.max(leftParts.fraction.length, rightParts.fraction.length)
+  const toInteger = ({ whole, fraction }: { whole: string; fraction: string }) =>
+    BigInt(`${whole}${fraction.padEnd(scale, "0")}`)
+  const leftInteger = toInteger(leftParts)
+  const rightInteger = toInteger(rightParts)
+  return leftInteger < rightInteger ? -1 : leftInteger > rightInteger ? 1 : 0
 }
 
 function selectRuneUtxo(
@@ -456,6 +473,20 @@ function App() {
           record.chain === wallet.chain,
       )) {
         throw new Error("A BRC-20 deposit is still pending. Continue its broadcast from the local record before creating another one.");
+      }
+      if (assetKind === "brc20") {
+        setLoadingText("Checking BRC-20 available balance...");
+        const availableBalance = await getBrc20AvailableBalance(
+          wallet.address,
+          ticker,
+          openApiKeyForRequests,
+          wallet.chain,
+        );
+        if (compareDecimalAmounts(availableBalance, amount) < 0) {
+          throw new Error(
+            `BRC-20 available balance for ${ticker.trim().toLowerCase()} is ${availableBalance}, which is less than the requested lock amount of ${amount.trim()}.`,
+          );
+        }
       }
       setLoadingText("Loading current wallet UTXOs...");
       const currentWalletUtxos = await getAvailableUtxos(
