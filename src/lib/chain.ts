@@ -2,7 +2,6 @@ import { ChainType } from '../types'
 
 export const CHAIN_OPTIONS: Array<{ value: ChainType; label: string }> = [
   { value: ChainType.BITCOIN_MAINNET, label: 'Bitcoin Mainnet' },
-  { value: ChainType.BITCOIN_TESTNET, label: 'Bitcoin Testnet' },
   { value: ChainType.BITCOIN_TESTNET4, label: 'Bitcoin Testnet4' },
   { value: ChainType.BITCOIN_SIGNET, label: 'Bitcoin Signet' },
   { value: ChainType.FRACTAL_BITCOIN_MAINNET, label: 'Fractal Mainnet' },

@@ -3,7 +3,6 @@ import type { AddressBalance, OpenApiUtxo, RuneIndexerBalance, RuneIndexerEntry,
 
 const DEFAULT_OPENAPI_BASES: Record<ChainType, string> = {
   BITCOIN_MAINNET: 'https://open-api.unisat.io/v1/indexer',
-  BITCOIN_TESTNET: 'https://open-api-testnet.unisat.io/v1/indexer',
   BITCOIN_TESTNET4: 'https://open-api-testnet4.unisat.io/v1/indexer',
   BITCOIN_SIGNET: 'https://open-api-signet.unisat.io/v1/indexer',
   FRACTAL_BITCOIN_MAINNET: 'https://open-api-fractal.unisat.io/v1/indexer',
@@ -19,7 +18,6 @@ export function getOpenApiBase(chain?: ChainType | string): string {
   const selected = normalizeChain(chain)
   const configuredByChain: Partial<Record<ChainType, string | undefined>> = {
     BITCOIN_MAINNET: (import.meta.env.VITE_BITCOIN_OPENAPI_BASE as string | undefined)?.trim(),
-    BITCOIN_TESTNET: (import.meta.env.VITE_BITCOIN_TESTNET_OPENAPI_BASE as string | undefined)?.trim(),
     BITCOIN_TESTNET4: (import.meta.env.VITE_BITCOIN_TESTNET4_OPENAPI_BASE as string | undefined)?.trim(),
     BITCOIN_SIGNET: (import.meta.env.VITE_BITCOIN_SIGNET_OPENAPI_BASE as string | undefined)?.trim(),
     FRACTAL_BITCOIN_MAINNET: (import.meta.env.VITE_FRACTAL_OPENAPI_BASE as string | undefined)?.trim() || (import.meta.env.VITE_OPENAPI_BASE as string | undefined)?.trim(),

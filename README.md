@@ -41,14 +41,13 @@ Never add unrelated asset UTXOs as fee inputs. A Rune UTXO may carry other Runes
 
 ## Network configuration
 
-The wallet network selector supports Bitcoin Mainnet, Testnet, Testnet4, Signet, Fractal Mainnet, and Fractal Testnet. The app chooses PSBT/address parameters, API, and mempool endpoints from UniSat's current chain. Bitcoin and Fractal mainnet use the `bc` address family; all supported test networks use `tb`.
+The wallet network selector supports Bitcoin Mainnet, Testnet4, Signet, Fractal Mainnet, and Fractal Testnet. The app chooses PSBT/address parameters, API, and mempool endpoints from UniSat's current chain. Bitcoin and Fractal mainnet use the `bc` address family; all supported test networks use `tb`.
 
 Copy `.env.example` to `.env` to override any OpenAPI endpoint:
 
 ```text
 VITE_FRACTAL_OPENAPI_BASE=https://open-api-fractal.unisat.io/v1/indexer
 VITE_BITCOIN_OPENAPI_BASE=https://open-api.unisat.io/v1/indexer
-VITE_BITCOIN_TESTNET_OPENAPI_BASE=https://open-api-testnet.unisat.io/v1/indexer
 VITE_BITCOIN_TESTNET4_OPENAPI_BASE=https://open-api-testnet4.unisat.io/v1/indexer
 VITE_BITCOIN_SIGNET_OPENAPI_BASE=https://open-api-signet.unisat.io/v1/indexer
 VITE_FRACTAL_TESTNET_OPENAPI_BASE=https://open-api-fractal-testnet.unisat.io/v1/indexer

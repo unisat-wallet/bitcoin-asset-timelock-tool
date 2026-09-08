@@ -10,8 +10,6 @@ function explorerBase(chain?: ChainType | string): string {
       return "https://uniscan.cc/fractal-testnet";
     case ChainType.BITCOIN_SIGNET:
       return "https://uniscan.cc/signet";
-    case ChainType.BITCOIN_TESTNET:
-      return "https://mempool.space/testnet";
     case ChainType.BITCOIN_TESTNET4:
       return "https://mempool.space/testnet4";
     default:
