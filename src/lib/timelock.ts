@@ -188,7 +188,11 @@ function buildInscriptionPayment(pubKey: string, content: string, chain?: ChainT
     bitcoin.opcodes.OP_FALSE,
     bitcoin.opcodes.OP_IF,
     Buffer.from('ord'),
-    Buffer.from([1]),
+    // Keep the protocol version as a one-byte data push (`01 01`). Passing
+    // Buffer.from([1]) would be minimally encoded by script.compile as OP_1
+    // (`51`), which Ord treats as a pushnum rather than an envelope field.
+    1,
+    1,
     Buffer.from('text/plain;charset=utf-8'),
     Buffer.alloc(0),
     Buffer.from(content, 'utf8'),
