@@ -1,0 +1,49 @@
+{
+  "name": "bitcoin-asset-timelock-tool",
+  "version": "0.1.0",
+  "description": "Browser-based Bitcoin asset time-lock tool for BRC-20 transfer inscriptions and Runes.",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  },
+  "overrides": {
+    "vite-plugin-top-level-await": {
+      "uuid": "^11.1.1"
+    }
+  },
+  "keywords": [
+    "brc-20",
+    "runes",
+    "runestone",
+    "bitcoin-assets",
+    "timelock",
+    "fractal-bitcoin",
+    "inscription",
+    "unisat"
+  ],
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview --host 0.0.0.0"
+  },
+  "dependencies": {
+    "@unisat/wallet-bitcoin": "^1.1.0",
+    "@unisat/wallet-types": "^1.0.0",
+    "antd": "^6.3.7",
+    "buffer": "^6.0.3",
+    "process": "^0.11.10",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.43",
+    "@types/react": "^18.3.31",
+    "@types/react-dom": "^18.3.7",
+    "@vitejs/plugin-react": "^5.2.0",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.6",
+    "vite-plugin-top-level-await": "^1.6.0",
+    "vite-plugin-wasm": "^3.6.0"
+  }
+}
