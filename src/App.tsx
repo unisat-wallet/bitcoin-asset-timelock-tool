@@ -67,6 +67,11 @@ function isBip68NotFinalError(error: unknown): boolean {
   return getErrorMessage(error).toLowerCase().includes("non-bip68-final");
 }
 
+function isAlreadyBroadcastError(error: unknown): boolean {
+  const message = getErrorMessage(error).toLowerCase();
+  return /already.*(mempool|known|block chain|exists)|txn-already-known/.test(message);
+}
+
 function validateRuneName(name: string, fractal: boolean): string | undefined {
   const value = name.trim();
   if (!value) return "Enter the Rune name as a network safety check.";
@@ -315,14 +320,81 @@ function App() {
 
   const createRecord = (
     params: Omit<TimeLockRecord, "id" | "createdAt" | "status">,
+    status: TimeLockRecord["status"] = "locked",
   ) => {
     const id =
       globalThis.crypto?.randomUUID?.() ||
       `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-    setRecords((current) => [
-      { ...params, id, createdAt: new Date().toISOString(), status: "locked" },
-      ...current,
-    ]);
+    const record: TimeLockRecord = {
+      ...params,
+      id,
+      createdAt: new Date().toISOString(),
+      status,
+    };
+    const nextRecords = [record, ...readRecords()];
+    window.localStorage.setItem(TIMELOCK_STORAGE_KEY, JSON.stringify(nextRecords));
+    setRecords(nextRecords);
+    return record;
+  };
+
+  const updateStoredRecord = (
+    id: string,
+    update: (record: TimeLockRecord) => TimeLockRecord,
+  ) => {
+    const nextRecords = readRecords().map((item) =>
+      item.id === id ? update(item) : item,
+    );
+    window.localStorage.setItem(TIMELOCK_STORAGE_KEY, JSON.stringify(nextRecords));
+    setRecords(nextRecords);
+  };
+
+  const broadcastPendingBrc20 = async (record: TimeLockRecord) => {
+    const signedPsbts = record.pendingPsbts;
+    const expectedTxids = [
+      record.initialCommitTxid,
+      record.initialRevealTxid,
+      record.transferToLockTxid,
+      record.lockCommitTxid,
+      record.lockRevealTxid,
+    ];
+    if (!signedPsbts || signedPsbts.length !== 5 || expectedTxids.some((txid) => !txid)) {
+      throw new Error("This pending BRC-20 record is missing its signed transaction chain and cannot be resumed.");
+    }
+    const startStep = record.broadcastStep || 0;
+    for (let index = startStep; index < 5; index += 1) {
+      setLoadingText(`Broadcasting ${index + 1}/5...`);
+      let txid: string | undefined;
+      try {
+        txid = await pushSignedPsbt(signedPsbts[index]);
+      } catch (error) {
+        // A timeout can occur after the wallet has accepted the transaction.
+        // Re-submitting a known tx is safe and counts as progress.
+        if (!isAlreadyBroadcastError(error)) throw error;
+      }
+      if (txid && txid !== expectedTxids[index]) {
+        throw new Error(
+          `Broadcast txid differs from the saved transaction at step ${index + 1}: ${txid}`,
+        );
+      }
+      updateStoredRecord(record.id, (item) => ({
+        ...item,
+        broadcastStep: index + 1,
+      }));
+    }
+    updateStoredRecord(record.id, (item) => ({
+      ...item,
+      status: "locked",
+      broadcastStep: undefined,
+      pendingPsbts: undefined,
+    }));
+    setResult({
+      status: "timelock_success",
+      commitTxid: record.lockCommitTxid!,
+      revealTxid: record.lockRevealTxid!,
+      timeLockAddress: record.timeLockAddress,
+    });
+    messageApi.success("All five deposit transactions were broadcast. The final transfer inscription is locked.");
+    void fetchWalletUtxos();
   };
 
   const confirmLock = (params: {
@@ -376,6 +448,14 @@ function App() {
         throw new Error(
           "Only native SegWit (bc1q / tb1q) and Taproot (bc1p / tb1p) wallet addresses are supported. P2PKH and P2SH are not supported.",
         );
+      }
+      if (assetKind === "brc20" && records.some(
+        (record) =>
+          record.status === "pending" &&
+          record.ownerAddress === wallet.address &&
+          record.chain === wallet.chain,
+      )) {
+        throw new Error("A BRC-20 deposit is still pending. Continue its broadcast from the local record before creating another one.");
       }
       setLoadingText("Loading current wallet UTXOs...");
       const currentWalletUtxos = await getAvailableUtxos(
@@ -500,25 +580,7 @@ function App() {
           toSignInputs: toUniSatSignInputs(step.toSignInputs),
         })),
       );
-      const broadcast = async (step: number) => {
-        const built = deposit.steps[step - 1];
-        setLoadingText(`Broadcasting ${step}/5: ${built.label}...`);
-        const txid = await pushSignedPsbt(
-          normalizeSignedPsbtToHex(signedPsbts[step - 1]),
-        );
-        if (txid !== built.txid) {
-          throw new Error(
-            `Broadcast txid differs from the pre-built transaction. Stopped subsequent broadcasts: ${txid}`,
-          );
-        }
-        return txid;
-      };
-      const initialCommitTxid = await broadcast(1);
-      const initialRevealTxid = await broadcast(2);
-      const transferToLockTxid = await broadcast(3);
-      const lockCommitTxid = await broadcast(4);
-      const lockRevealTxid = await broadcast(5);
-      createRecord({
+      const pendingRecord = createRecord({
         ownerAddress: wallet.address,
         chain: wallet.chain,
         assetKind: "brc20",
@@ -526,27 +588,41 @@ function App() {
         amount: amount.trim(),
         lockBlocks,
         timeLockAddress: deposit.timeLockAddress,
-        commitTxid: lockCommitTxid,
-        revealTxid: lockRevealTxid,
-        initialCommitTxid,
-        initialRevealTxid,
-        transferToLockTxid,
-        lockCommitTxid,
-        lockRevealTxid,
-        inscriptionTxid: lockRevealTxid,
+        commitTxid: deposit.steps[3].txid,
+        revealTxid: deposit.steps[4].txid,
+        initialCommitTxid: deposit.steps[0].txid,
+        initialRevealTxid: deposit.steps[1].txid,
+        transferToLockTxid: deposit.steps[2].txid,
+        lockCommitTxid: deposit.steps[3].txid,
+        lockRevealTxid: deposit.steps[4].txid,
+        inscriptionTxid: deposit.steps[4].txid,
         inscriptionVout: 0,
         inscriptionSatoshi: deposit.inscriptionSatoshi,
-      });
-      setResult({
-        status: "timelock_success",
-        commitTxid: lockCommitTxid,
-        revealTxid: lockRevealTxid,
-        timeLockAddress: deposit.timeLockAddress,
-      });
-      messageApi.success(
-        "All five deposit transactions were broadcast. The final transfer inscription is locked.",
-      );
-      void fetchWalletUtxos();
+        broadcastStep: 0,
+        pendingPsbts: signedPsbts.map(normalizeSignedPsbtToHex),
+      }, "pending");
+      await broadcastPendingBrc20(pendingRecord);
+    } catch (error) {
+      const msg = getErrorMessage(error);
+      setResult({ status: "error", message: msg });
+      messageApi.error(msg);
+    } finally {
+      setLoadingText("");
+    }
+  };
+
+  const handleResumeBrc20 = async (record: TimeLockRecord) => {
+    if (!wallet.connected || !wallet.address || !wallet.pubKey) {
+      messageApi.warning("Connect the wallet that created this time lock first.");
+      return;
+    }
+    if (record.ownerAddress !== wallet.address || record.chain !== wallet.chain) {
+      messageApi.error("Switch UniSat to the wallet and network that created this pending deposit before continuing.");
+      return;
+    }
+    setResult({ status: "idle" });
+    try {
+      await broadcastPendingBrc20(record);
     } catch (error) {
       const msg = getErrorMessage(error);
       setResult({ status: "error", message: msg });
@@ -751,6 +827,7 @@ function App() {
             resetBuiltState();
           }}
           onCreate={handleCreate}
+          onResume={handleResumeBrc20}
           onUnlock={handleUnlock}
           onCopy={handleCopy}
         />

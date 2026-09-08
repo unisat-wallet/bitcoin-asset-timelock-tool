@@ -25,6 +25,7 @@ type Props = {
   onLockBlocksChange: (value: TimeLockBlocks) => void
   onFeeRateChange: (value: number) => void
   onCreate: () => void
+  onResume: (record: TimeLockRecord) => void
   onUnlock: (record: TimeLockRecord) => void
   onCopy: (value: string, label: string) => void
 }
@@ -106,22 +107,26 @@ export function OperationPanel(props: Props) {
           dataSource={props.records}
           renderItem={(record) => (
             <List.Item
-              actions={record.status === 'locked' ? [
-                <Button key="unlock" type="primary" icon={<UnlockOutlined />} onClick={() => props.onUnlock(record)}>Unlock</Button>,
-              ] : [<Tag key="unlocked" color="success">Unlocked</Tag>]}
+              actions={record.status === 'pending'
+                ? [<Button key="resume" type="primary" onClick={() => props.onResume(record)}>Continue Broadcast</Button>]
+                : record.status === 'locked'
+                  ? [<Button key="unlock" type="primary" icon={<UnlockOutlined />} onClick={() => props.onUnlock(record)}>Unlock</Button>]
+                  : [<Tag key="unlocked" color="success">Unlocked</Tag>]}
             >
               <List.Item.Meta
-                title={<Space wrap><Tag color={record.assetKind === 'runes' ? 'purple' : 'blue'}>{record.assetKind === 'runes' ? 'Rune' : 'BRC-20'}</Tag><strong>{record.runeName || record.ticker}</strong>{record.runeId && <Tag>{record.runeId}</Tag>}<Tag>{record.amount}</Tag><Tag color="blue">{record.lockBlocks} blocks</Tag>{record.chain && <Tag>{record.chain}</Tag>}{record.status === 'unlocked' && <Tag color="success">Unlocked</Tag>}</Space>}
+                title={<Space wrap><Tag color={record.assetKind === 'runes' ? 'purple' : 'blue'}>{record.assetKind === 'runes' ? 'Rune' : 'BRC-20'}</Tag><strong>{record.runeName || record.ticker}</strong>{record.runeId && <Tag>{record.runeId}</Tag>}<Tag>{record.amount}</Tag><Tag color="blue">{record.lockBlocks} blocks</Tag>{record.chain && <Tag>{record.chain}</Tag>}{record.status === 'pending' && <Tag color="processing">Broadcast {record.broadcastStep || 0}/5</Tag>}{record.status === 'unlocked' && <Tag color="success">Unlocked</Tag>}</Space>}
                 description={<Space direction="vertical" size={2}>
                   <span>Time-lock address: <a href={getAddressExplorerUrl(record.timeLockAddress, record.chain)} target="_blank" rel="noreferrer">{shortAddress(record.timeLockAddress, 12, 12)}</a></span>
                   {record.assetKind === 'runes'
                     ? <span>Lock transaction: <a href={getTransactionExplorerUrl(record.commitTxid, record.chain)} target="_blank" rel="noreferrer">{shortAddress(record.commitTxid, 12, 12)}</a></span>
-                    : <span>Inscription outpoint: <a href={getTransactionExplorerUrl(record.inscriptionTxid, record.chain)} target="_blank" rel="noreferrer">{shortAddress(record.inscriptionTxid, 12, 12)}:{record.inscriptionVout}</a></span>}
-                  {record.initialCommitTxid && <span>1/5 Self transfer commit: <a href={getTransactionExplorerUrl(record.initialCommitTxid, record.chain)} target="_blank" rel="noreferrer">{shortAddress(record.initialCommitTxid, 12, 12)}</a></span>}
-                  {record.initialRevealTxid && <span>2/5 Self transfer reveal: <a href={getTransactionExplorerUrl(record.initialRevealTxid, record.chain)} target="_blank" rel="noreferrer">{shortAddress(record.initialRevealTxid, 12, 12)}</a></span>}
-                  {record.transferToLockTxid && <span>3/5 Send to time lock: <a href={getTransactionExplorerUrl(record.transferToLockTxid, record.chain)} target="_blank" rel="noreferrer">{shortAddress(record.transferToLockTxid, 12, 12)}</a></span>}
-                  {record.lockCommitTxid && <span>4/5 Time-lock transfer commit: <a href={getTransactionExplorerUrl(record.lockCommitTxid, record.chain)} target="_blank" rel="noreferrer">{shortAddress(record.lockCommitTxid, 12, 12)}</a></span>}
-                  {record.lockRevealTxid && <span>5/5 Time-lock transfer reveal: <a href={getTransactionExplorerUrl(record.lockRevealTxid, record.chain)} target="_blank" rel="noreferrer">{shortAddress(record.lockRevealTxid, 12, 12)}</a></span>}
+                    : record.status === 'pending'
+                      ? <span>Broadcast progress: {record.broadcastStep || 0}/5 transactions submitted</span>
+                      : <span>Inscription outpoint: <a href={getTransactionExplorerUrl(record.inscriptionTxid, record.chain)} target="_blank" rel="noreferrer">{shortAddress(record.inscriptionTxid, 12, 12)}:{record.inscriptionVout}</a></span>}
+                  {record.initialCommitTxid && (record.status !== 'pending' || (record.broadcastStep || 0) >= 1) && <span>1/5 Self transfer commit: <a href={getTransactionExplorerUrl(record.initialCommitTxid, record.chain)} target="_blank" rel="noreferrer">{shortAddress(record.initialCommitTxid, 12, 12)}</a></span>}
+                  {record.initialRevealTxid && (record.status !== 'pending' || (record.broadcastStep || 0) >= 2) && <span>2/5 Self transfer reveal: <a href={getTransactionExplorerUrl(record.initialRevealTxid, record.chain)} target="_blank" rel="noreferrer">{shortAddress(record.initialRevealTxid, 12, 12)}</a></span>}
+                  {record.transferToLockTxid && (record.status !== 'pending' || (record.broadcastStep || 0) >= 3) && <span>3/5 Send to time lock: <a href={getTransactionExplorerUrl(record.transferToLockTxid, record.chain)} target="_blank" rel="noreferrer">{shortAddress(record.transferToLockTxid, 12, 12)}</a></span>}
+                  {record.lockCommitTxid && (record.status !== 'pending' || (record.broadcastStep || 0) >= 4) && <span>4/5 Time-lock transfer commit: <a href={getTransactionExplorerUrl(record.lockCommitTxid, record.chain)} target="_blank" rel="noreferrer">{shortAddress(record.lockCommitTxid, 12, 12)}</a></span>}
+                  {record.lockRevealTxid && (record.status !== 'pending' || (record.broadcastStep || 0) >= 5) && <span>5/5 Time-lock transfer reveal: <a href={getTransactionExplorerUrl(record.lockRevealTxid, record.chain)} target="_blank" rel="noreferrer">{shortAddress(record.lockRevealTxid, 12, 12)}</a></span>}
                   {record.unlockTxid && <span>Unlock transaction: <a href={getTransactionExplorerUrl(record.unlockTxid, record.chain)} target="_blank" rel="noreferrer">{shortAddress(record.unlockTxid, 12, 12)}</a></span>}
                   <span>Created: {new Date(record.createdAt).toLocaleString()}</span>
                 </Space>}

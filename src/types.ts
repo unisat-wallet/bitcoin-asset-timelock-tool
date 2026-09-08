@@ -157,7 +157,11 @@ export type TimeLockRecord = {
   inscriptionTxid: string
   inscriptionVout: number
   inscriptionSatoshi: number
-  status: 'locked' | 'unlocked'
+  status: 'pending' | 'locked' | 'unlocked'
+  /** Number of BRC-20 deposit transactions confirmed as submitted (0–5). */
+  broadcastStep?: number
+  /** Signed BRC-20 transaction chain retained only until all five broadcasts finish. */
+  pendingPsbts?: string[]
   unlockTxid?: string
 }
 
