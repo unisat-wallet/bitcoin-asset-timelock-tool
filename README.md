@@ -12,10 +12,10 @@ A browser-based Taproot relative-block time-lock tool for Bitcoin assets. It sup
 Every newly created lock also has a versioned recovery marker:
 
 ```text
-OP_RETURN "BATL" <version> <lock-blocks> <x-only-public-key>
+BRC-20: OP_RETURN "BATL" <version> <uint16_be(lock-blocks)> <x-only-public-key> <owner-address-type>
 ```
 
-For BRC-20 this is the transaction's one zero-satoshi OP_RETURN output. For Runes, it is encoded as repeated unknown-odd `Nop (127)` tag fields inside the existing Runestone OP_RETURN; Runes indexers ignore those fields, so the transaction still has exactly one OP_RETURN. The marker is public and contains no private key or signature. A compatible browser tool can decode it, re-derive the CSV Taproot lock address, inspect the transaction outputs, and recreate an unlock record if LocalStorage has been cleared.
+For BRC-20 this is the transaction's one zero-satoshi OP_RETURN output. For Runes, the same BATL metadata is encoded as repeated unknown-odd `Nop (127)` tag fields inside the existing Runestone OP_RETURN; Runes indexers ignore those fields, so the transaction still has exactly one OP_RETURN. The owner address type preserves the information needed to restore P2TR or P2WPKH owner addresses from the x-only public key. The marker is public and contains no private key or signature. A compatible browser tool can decode it, re-derive the CSV Taproot lock address, inspect the transaction outputs, and recreate an unlock record if LocalStorage has been cleared.
 
 See [the BATL protocol specification](docs/BATL-PROTOCOL.md) for the normative encoding and recovery rules.
 

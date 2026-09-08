@@ -77,8 +77,8 @@ OP_RETURN
 | `magic` | 4 bytes | ASCII `BATL` |
 | `version` | 1 byte | `0x01` |
 | `blocks` | 2 bytes | unsigned big-endian relative block count (`1`–`65535`) |
-| `owner_address_type` | 1 byte | Section 4.2 enum |
 | `owner_xonly_pubkey` | 32 bytes | BIP340 x-only public key |
+| `owner_address_type` | 1 byte | Section 4.2 enum |
 
 Bitcoin Script minimal pushes are used. The canonical BATL v1 script shape is therefore:
 
