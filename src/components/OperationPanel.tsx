@@ -1,9 +1,8 @@
 import { CopyOutlined, ReloadOutlined, UnlockOutlined } from '@ant-design/icons'
 import { Alert, Button, Card, Descriptions, Input, InputNumber, List, Segmented, Space, Tag, Typography } from 'antd'
 import type { AddressBalance, AssetKind, BuiltTimeLockTx, ResultState, TimeLockBlocks, TimeLockRecord } from '../types'
-import type { UtxoSelectionState } from '../hooks/useUtxoSelection'
+import type { WalletUtxoState } from '../hooks/useWalletUtxos'
 import { satoshiToFb, shortAddress } from '../lib/format'
-import { UtxoSelector } from './UtxoSelector'
 import { TxPreview } from './TxPreview'
 import { ResultAlert } from './ResultAlert'
 
@@ -17,7 +16,7 @@ type Props = {
   feeRate: number
   timeLockAddress: string
   walletBalance: AddressBalance | null
-  walletUtxos: UtxoSelectionState
+  walletUtxos: WalletUtxoState
   hasOpenApiKey: boolean
   canFetchUtxos: boolean
   canCreate: boolean
@@ -52,10 +51,10 @@ export function OperationPanel(props: Props) {
             showIcon
             message={props.assetKind === 'brc20'
               ? 'Deposit broadcasts five transactions: inscribe transfer to yourself (2) → send it to the time-lock address (1) → inscribe transfer at the time-lock address (2).'
-              : 'Rune deposit broadcasts one Runestone transaction. The Runes Indexer resolves the Rune name or ID and selects enough transferable Rune UTXOs. A Rune-change output and pointer are added only when some Rune balance must remain in your wallet.'}
+              : 'Rune deposit broadcasts one Runestone transaction. The Runes Indexer resolves the Rune name or ID and selects enough transferable Rune UTXOs. Automatic fee funding always includes a Rune-change output and pointer as a safety measure.'}
             description={props.assetKind === 'brc20'
-              ? 'All five transactions are signed before any are broadcast. The final transfer inscription can be unlocked after the configured relative block count.'
-              : 'Enter the exact base-unit amount. The tool uses the smallest indexed Rune UTXO that can cover it, or combines multiple Rune UTXOs when necessary. Select normal BTC/FB UTXOs below only when extra fee funding is needed.'}
+              ? 'All five transactions are signed before any are broadcast. The tool automatically uses the largest available wallet UTXO; it must be large enough to fund the flow. The final transfer inscription can be unlocked after the configured relative block count.'
+              : 'Enter the exact base-unit amount. The tool uses the smallest indexed Rune UTXO that can cover it, or combines multiple Rune UTXOs when necessary. When extra fee funding is needed, it automatically uses available wallet UTXOs.'}
           />
 
           <div className="step-panel">
@@ -86,15 +85,14 @@ export function OperationPanel(props: Props) {
               {props.timeLockAddress && <CopyOutlined />}
             </div>
             <Descriptions className="mt-16" column={{ xs: 1, sm: 3 }} size="small" bordered>
-              <Descriptions.Item label="Wallet UTXOs">{props.walletUtxos.listedUtxos.length}</Descriptions.Item>
-              <Descriptions.Item label="Selected UTXOs">{props.walletUtxos.selectedUtxos.length}</Descriptions.Item>
-              <Descriptions.Item label="Selected Amount">{satoshiToFb(props.walletUtxos.selectedSatoshi)} {props.fractalNetwork ? 'FB' : 'BTC'}</Descriptions.Item>
+              <Descriptions.Item label="Available UTXOs">{props.walletUtxos.listedUtxos.length}</Descriptions.Item>
+              <Descriptions.Item label="Funding">Automatically selected when creating</Descriptions.Item>
+              <Descriptions.Item label="Available Amount">{satoshiToFb(props.walletUtxos.totalSatoshi)} {props.fractalNetwork ? 'FB' : 'BTC'}</Descriptions.Item>
               <Descriptions.Item label="Wallet Balance">{props.walletBalance ? `${satoshiToFb(props.walletBalance.satoshi)} ${props.fractalNetwork ? 'FB' : 'BTC'}` : '-'}</Descriptions.Item>
             </Descriptions>
             <Button className="mt-16" type="primary" ghost icon={<ReloadOutlined />} disabled={!props.canFetchUtxos || !props.hasOpenApiKey} onClick={props.onFetchUtxos}>
-              Load Wallet UTXOs
+              Load / Refresh Wallet UTXOs
             </Button>
-            <UtxoSelector title={props.assetKind === 'brc20' ? 'Select exactly one funding UTXO for the five transactions' : 'Optional: select normal BTC/FB UTXOs for additional miner fees'} fallbackScriptType="unknown script" utxos={props.walletUtxos.listedUtxos} selectedKeys={props.walletUtxos.selectedKeys} onSelectAll={props.walletUtxos.selectAll} onToggle={props.walletUtxos.toggle} />
           </div>
 
           <div className="step-panel">

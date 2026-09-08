@@ -28,7 +28,6 @@ import {
   getAvailableUtxos,
   getBlockchainHeight,
   getRuneMetadata,
-  getRuneUtxoBalances,
 } from "./lib/openapi";
 import { getRecommendedFeeRate } from "./lib/mempool";
 import { copyText, shortAddress } from "./lib/format";
@@ -37,11 +36,12 @@ import { DEFAULT_FEE_RATE } from "./constants";
 import { getErrorMessage } from "./lib/errors";
 import { normalizeSignedPsbtToHex, toUniSatSignInputs } from "./lib/psbt";
 import { useOpenApiKey } from "./hooks/useOpenApiKey";
-import { useUtxoSelection } from "./hooks/useUtxoSelection";
+import { useWalletUtxos } from "./hooks/useWalletUtxos";
 import { useWalletConnection } from "./hooks/useWalletConnection";
 import { WalletInfoCard } from "./components/WalletInfoCard";
 import { OperationPanel } from "./components/OperationPanel";
 import { isFractalChain } from "./lib/chain";
+import { isSelectableUtxo } from "./lib/utxo";
 
 const TIMELOCK_STORAGE_KEY = "bitcoin_asset_timelock_records";
 
@@ -151,6 +151,24 @@ function selectRuneUtxo(
   };
 }
 
+function selectAutomaticBrc20FundingUtxo(
+  utxos: OpenApiUtxo[],
+): OpenApiUtxo {
+  const fundingUtxo = [...utxos]
+    .filter(isSelectableUtxo)
+    .sort((left, right) => right.satoshi - left.satoshi)[0];
+  if (!fundingUtxo)
+    throw new Error("Load wallet UTXOs before creating a BRC-20 time lock.");
+  return fundingUtxo;
+}
+
+function automaticFeeUtxoCandidates(utxos: OpenApiUtxo[]): OpenApiUtxo[] {
+  // Larger UTXOs first minimizes the number of fee inputs the transaction uses.
+  return [...utxos]
+    .filter(isSelectableUtxo)
+    .sort((left, right) => right.satoshi - left.satoshi);
+}
+
 function App() {
   const [messageApi, contextHolder] = message.useMessage();
   const [ticker, setTicker] = useState("fractal");
@@ -172,7 +190,7 @@ function App() {
     setResult({ status: "idle" });
   }, []);
   const wallet = useWalletConnection((msg) => messageApi.error(msg));
-  const walletUtxos = useUtxoSelection(resetBuiltState);
+  const walletUtxos = useWalletUtxos();
   const clearLoadedData = useCallback(() => {
     setWalletBalance(null);
     walletUtxos.clear();
@@ -219,7 +237,7 @@ function App() {
       ? canFetchUtxos &&
         !!ticker.trim() &&
         !!amount.trim() &&
-        walletUtxos.selectedUtxos.length === 1
+        walletUtxos.listedUtxos.length > 0
       : canFetchUtxos && !!runeReference.trim() && !!amount.trim();
   const loading = !!loadingText;
 
@@ -310,7 +328,7 @@ function App() {
   const handleCreate = async () => {
     if (!canCreate || !hasOpenApiKey) {
       messageApi.warning(
-        "Enter the token, amount, select one UTXO, and configure an OpenAPI key.",
+        "Enter the token and amount, load wallet UTXOs, and configure an OpenAPI key.",
       );
       return;
     }
@@ -322,7 +340,6 @@ function App() {
           "Only native SegWit (bc1q / tb1q) and Taproot (bc1p / tb1p) wallet addresses are supported. P2PKH and P2SH are not supported.",
         );
       }
-      const fundingUtxo = walletUtxos.selectedUtxos[0];
       if (assetKind === "runes") {
         const fractal = isFractalChain(String(wallet.chain));
         if (!/^\d+:\d+$/.test(runeReference.trim())) {
@@ -347,27 +364,6 @@ function App() {
           wallet.chain,
         );
         const source = selectRuneUtxo(runeUtxos, metadata, amount);
-        const sourceKeys = new Set(
-          source.utxos.map((utxo) => `${utxo.txid}:${utxo.vout}`),
-        );
-        const feeInputs = walletUtxos.selectedUtxos.filter(
-          (utxo) => !sourceKeys.has(`${utxo.txid}:${utxo.vout}`),
-        );
-        const feeInputRuneBalances = await Promise.all(
-          feeInputs.map((utxo) =>
-            getRuneUtxoBalances(
-              utxo.txid,
-              utxo.vout,
-              openApiKeyForRequests,
-              wallet.chain,
-            ),
-          ),
-        );
-        const feeInputsCarryRunes = feeInputRuneBalances.some((balances) =>
-          balances.some(
-            (rune) => /^\d+$/.test(rune.amount) && BigInt(rune.amount) > 0n,
-          ),
-        );
         setLoadingText("Building the Runestone time-lock transaction...");
         const deposit = buildRuneTimeLockDeposit({
           userAddress: wallet.address,
@@ -377,10 +373,12 @@ function App() {
           runeName: metadata.rune,
           runeAmount: amount,
           runeBalance: source.balance,
-          hasUnallocatedRunes:
-            source.hasUnallocatedRunes || feeInputsCarryRunes,
+          // Fee inputs are chosen automatically. Always retain a Rune-change
+          // output so any Runes on an automatically chosen fee UTXO return to
+          // the wallet rather than being assigned to the lock output.
+          hasUnallocatedRunes: true,
           runeUtxos: source.utxos,
-          feeUtxos: walletUtxos.selectedUtxos,
+          feeUtxos: automaticFeeUtxoCandidates(walletUtxos.utxos),
           feeRate,
           chain: wallet.chain,
         });
@@ -424,6 +422,9 @@ function App() {
       }
       setLoadingText(
         "Building the five-transaction BRC-20 deposit from one UTXO...",
+      );
+      const fundingUtxo = selectAutomaticBrc20FundingUtxo(
+        walletUtxos.utxos,
       );
       const deposit = buildSingleUtxoTimeLockDeposit({
         userAddress: wallet.address,

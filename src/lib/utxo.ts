@@ -1,4 +1,3 @@
-import { MIN_LISTED_UTXO_SATOSHI } from "../constants";
 import type { OpenApiUtxo } from "../types";
 
 export function getUtxoKey(utxo: OpenApiUtxo): string {
@@ -9,7 +8,7 @@ export function isSelectableUtxo(utxo: OpenApiUtxo): boolean {
   return (
     !utxo.isSpent &&
     !utxo.isSpending &&
-    utxo.satoshi > MIN_LISTED_UTXO_SATOSHI &&
+    utxo.satoshi > 0 &&
     !!utxo.txid &&
     !!utxo.scriptPk
   );
