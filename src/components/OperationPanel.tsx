@@ -117,11 +117,11 @@ export function OperationPanel(props: Props) {
                   {record.assetKind === 'runes'
                     ? <span>Lock transaction: <a href={getTransactionExplorerUrl(record.commitTxid, record.chain)} target="_blank" rel="noreferrer">{shortAddress(record.commitTxid, 12, 12)}</a></span>
                     : <span>Inscription outpoint: <a href={getTransactionExplorerUrl(record.inscriptionTxid, record.chain)} target="_blank" rel="noreferrer">{shortAddress(record.inscriptionTxid, 12, 12)}:{record.inscriptionVout}</a></span>}
-                  {record.initialCommitTxid && <span>1/5 Self transfer commit: {shortAddress(record.initialCommitTxid, 12, 12)}</span>}
-                  {record.initialRevealTxid && <span>2/5 Self transfer reveal: {shortAddress(record.initialRevealTxid, 12, 12)}</span>}
-                  {record.transferToLockTxid && <span>3/5 Send to time lock: {shortAddress(record.transferToLockTxid, 12, 12)}</span>}
-                  {record.lockCommitTxid && <span>4/5 Time-lock transfer commit: {shortAddress(record.lockCommitTxid, 12, 12)}</span>}
-                  {record.lockRevealTxid && <span>5/5 Time-lock transfer reveal: {shortAddress(record.lockRevealTxid, 12, 12)}</span>}
+                  {record.initialCommitTxid && <span>1/5 Self transfer commit: <a href={getTransactionExplorerUrl(record.initialCommitTxid, record.chain)} target="_blank" rel="noreferrer">{shortAddress(record.initialCommitTxid, 12, 12)}</a></span>}
+                  {record.initialRevealTxid && <span>2/5 Self transfer reveal: <a href={getTransactionExplorerUrl(record.initialRevealTxid, record.chain)} target="_blank" rel="noreferrer">{shortAddress(record.initialRevealTxid, 12, 12)}</a></span>}
+                  {record.transferToLockTxid && <span>3/5 Send to time lock: <a href={getTransactionExplorerUrl(record.transferToLockTxid, record.chain)} target="_blank" rel="noreferrer">{shortAddress(record.transferToLockTxid, 12, 12)}</a></span>}
+                  {record.lockCommitTxid && <span>4/5 Time-lock transfer commit: <a href={getTransactionExplorerUrl(record.lockCommitTxid, record.chain)} target="_blank" rel="noreferrer">{shortAddress(record.lockCommitTxid, 12, 12)}</a></span>}
+                  {record.lockRevealTxid && <span>5/5 Time-lock transfer reveal: <a href={getTransactionExplorerUrl(record.lockRevealTxid, record.chain)} target="_blank" rel="noreferrer">{shortAddress(record.lockRevealTxid, 12, 12)}</a></span>}
                   {record.unlockTxid && <span>Unlock transaction: <a href={getTransactionExplorerUrl(record.unlockTxid, record.chain)} target="_blank" rel="noreferrer">{shortAddress(record.unlockTxid, 12, 12)}</a></span>}
                   <span>Created: {new Date(record.createdAt).toLocaleString()}</span>
                 </Space>}
