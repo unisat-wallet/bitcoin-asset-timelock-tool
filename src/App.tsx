@@ -23,11 +23,13 @@ import {
 } from "./lib/timelock";
 import {
   getAddressBalance,
+  getAddressBrc20Balances,
   getAddressRuneUtxos,
   getAvailableUtxos,
   getBrc20AvailableBalance,
   getRuneMetadata,
 } from "./lib/openapi";
+import type { Brc20Balance } from "./lib/openapi";
 import { getRecommendedFeeRate } from "./lib/mempool";
 import { copyText, shortAddress } from "./lib/format";
 import { pushSignedPsbt, signPsbtCompat, signPsbtsCompat } from "./lib/wallet";
@@ -191,8 +193,10 @@ function automaticFeeUtxoCandidates(utxos: OpenApiUtxo[]): OpenApiUtxo[] {
 
 function App() {
   const [messageApi, contextHolder] = message.useMessage();
-  const [ticker, setTicker] = useState("fractal");
+  const [ticker, setTicker] = useState("");
   const [amount, setAmount] = useState("");
+  const [brc20Balances, setBrc20Balances] = useState<Brc20Balance[]>([]);
+  const [brc20BalancesLoading, setBrc20BalancesLoading] = useState(false);
   const [assetKind, setAssetKind] = useState<AssetKind>("brc20");
   const [runeReference, setRuneReference] = useState("");
   const [lockBlocks, setLockBlocks] = useState<TimeLockBlocks>(3);
@@ -240,6 +244,37 @@ function App() {
       cancelled = true;
     };
   }, [hasOpenApiKey, openApiKeyForRequests, wallet.chain, wallet.connected]);
+
+  useEffect(() => {
+    if (assetKind !== "brc20" || !hasOpenApiKey || !wallet.connected || !wallet.address || !wallet.chain) {
+      setBrc20Balances([]);
+      setBrc20BalancesLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setBrc20BalancesLoading(true);
+    void getAddressBrc20Balances(
+      wallet.address,
+      openApiKeyForRequests,
+      wallet.chain,
+    )
+      .then((balances) => {
+        if (!cancelled) {
+          setBrc20Balances(balances.filter((balance) =>
+            compareDecimalAmounts(balance.availableBalance, "0") > 0,
+          ));
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setBrc20Balances([]);
+      })
+      .finally(() => {
+        if (!cancelled) setBrc20BalancesLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [assetKind, hasOpenApiKey, openApiKeyForRequests, wallet.address, wallet.chain, wallet.connected]);
 
   const timeLockAddress = useMemo(() => {
     if (!wallet.pubKey) return "";
@@ -821,6 +856,8 @@ function App() {
         />
         <OperationPanel
           ticker={ticker}
+          brc20Balances={brc20Balances}
+          brc20BalancesLoading={brc20BalancesLoading}
           amount={amount}
           assetKind={assetKind}
           runeReference={runeReference}
@@ -834,6 +871,7 @@ function App() {
           records={records}
           onTickerChange={(value) => {
             setTicker(value);
+            setAmount("");
             resetBuiltState();
           }}
           onAmountChange={(value) => {

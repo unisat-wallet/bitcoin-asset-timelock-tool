@@ -1,12 +1,15 @@
 import { CopyOutlined, UnlockOutlined } from '@ant-design/icons'
-import { Alert, Button, Card, Input, InputNumber, List, Segmented, Space, Tag, Typography } from 'antd'
+import { Alert, Button, Card, Input, InputNumber, List, Segmented, Select, Space, Tag, Typography } from 'antd'
 import type { AssetKind, ResultState, TimeLockBlocks, TimeLockRecord } from '../types'
+import type { Brc20Balance } from '../lib/openapi'
 import { shortAddress } from '../lib/format'
 import { getAddressExplorerUrl, getTransactionExplorerUrl } from '../lib/explorer'
 import { ResultAlert } from './ResultAlert'
 
 type Props = {
   ticker: string
+  brc20Balances: Brc20Balance[]
+  brc20BalancesLoading: boolean
   amount: string
   assetKind: AssetKind
   runeReference: string
@@ -56,9 +59,9 @@ export function OperationPanel(props: Props) {
             <Typography.Title level={5}>{props.assetKind === 'brc20' ? 'Configure BRC-20 Time Lock' : 'Configure Rune Time Lock'}</Typography.Title>
             <div className="configuration-form">
               <div className="configuration-row">
-                <label className="field-label">{props.assetKind === 'brc20' ? 'Token Tick (6–12 bytes)' : `Rune Name or Rune ID (${props.fractalNetwork ? 'Fractal: lowercase' : 'Bitcoin: uppercase'})`}</label>
+                <label className="field-label">{props.assetKind === 'brc20' ? 'Token Tick' : `Rune Name or Rune ID (${props.fractalNetwork ? 'Fractal: lowercase' : 'Bitcoin: uppercase'})`}</label>
                 {props.assetKind === 'brc20'
-                  ? <Input value={props.ticker} onChange={(event) => props.onTickerChange(event.target.value)} placeholder="Example: fractal" maxLength={12} />
+                  ? <Select value={props.ticker || undefined} placeholder="Select a wallet BRC-20 token" loading={props.brc20BalancesLoading} options={props.brc20Balances.map((balance) => ({ value: balance.ticker, label: `${balance.ticker} (Available: ${balance.availableBalance})` }))} onChange={props.onTickerChange} />
                   : <Input value={props.runeReference} onChange={(event) => props.onRuneReferenceChange(event.target.value)} placeholder={props.fractalNetwork ? 'fractal or 21000:1' : 'UNCOMMONGOODS or 840000:1'} />}
               </div>
               <div className="configuration-row">

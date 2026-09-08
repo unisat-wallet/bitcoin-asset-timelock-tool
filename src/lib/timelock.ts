@@ -296,9 +296,8 @@ export function buildBrc20TransferContent(ticker: string, amount: string): strin
   const sourceTick = ticker.trim()
   const tick = sourceTick.toLowerCase()
   const amt = amount.trim()
-  const byteLength = Buffer.byteLength(sourceTick, 'utf8')
-  if (byteLength < 6 || byteLength > 12 || !/^[0-9A-Z_a-z]+$/.test(sourceTick)) {
-    throw new Error('Fractal BRC-20 ticker must be 6–12 bytes and contain only letters, numbers, or underscores.')
+  if (!sourceTick) {
+    throw new Error('Enter a BRC-20 ticker.')
   }
   if (!/^\d+(\.\d+)?$/.test(amt) || /^0+(?:\.0+)?$/.test(amt)) {
     throw new Error('Enter a positive BRC-20 amount.')
