@@ -587,10 +587,12 @@ export function buildTimeLockUnlockTx(params: {
   feeRate: number
   chain?: ChainType | string
 }): BuiltTimeLockUnlockTx {
-  if (!isSpendable(params.inscriptionUtxo)) throw new Error('The recorded transfer inscription UTXO is no longer available.')
+  if (!params.inscriptionUtxo.txid || !Number.isInteger(params.inscriptionUtxo.vout) || params.inscriptionUtxo.vout < 0 || params.inscriptionUtxo.satoshi <= 0) {
+    throw new Error('The saved time-lock outpoint is invalid.')
+  }
   const network = networkForChain(params.chain)
   const payment = buildTimeLockPayment(params.pubKey, params.lockBlocks, params.chain)
-  if (decodeScript(params.inscriptionUtxo.scriptPk).toString('hex') !== payment.output.toString('hex')) {
+  if (params.inscriptionUtxo.scriptPk && decodeScript(params.inscriptionUtxo.scriptPk).toString('hex') !== payment.output.toString('hex')) {
     throw new Error('The selected record does not match this wallet public key or lock period.')
   }
   const principalOutput: OutputSpec = {

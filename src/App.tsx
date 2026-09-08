@@ -26,7 +26,6 @@ import {
   getAddressBalance,
   getAddressRuneUtxos,
   getAvailableUtxos,
-  getBlockchainHeight,
   getRuneMetadata,
 } from "./lib/openapi";
 import { getRecommendedFeeRate } from "./lib/mempool";
@@ -532,37 +531,23 @@ function App() {
     }
     setBuiltTx(null);
     setResult({ status: "idle" });
-    let lockInscriptionUtxo: import("./types").OpenApiUtxo | undefined;
+    const lockInscriptionUtxo: OpenApiUtxo = {
+      txid: record.inscriptionTxid,
+      vout: record.inscriptionVout,
+      satoshi: record.inscriptionSatoshi,
+      // The time-lock script is deterministically reconstructed from the
+      // connected owner's public key and the saved block count in
+      // buildTimeLockUnlockTx.
+      scriptPk: "",
+    };
     try {
-      setLoadingText("Looking up the locked transfer inscription UTXO...");
-      const [lockedUtxos, feeUtxos] = await Promise.all([
-        getAvailableUtxos(
-          record.timeLockAddress,
-          openApiKeyForRequests,
-          500,
-          wallet.chain,
-        ),
-        getAvailableUtxos(
-          wallet.address,
-          openApiKeyForRequests,
-          500,
-          wallet.chain,
-        ),
-      ]);
-      lockInscriptionUtxo = lockedUtxos.find(
-        (utxo) =>
-          utxo.txid === record.inscriptionTxid &&
-          utxo.vout === record.inscriptionVout,
+      setLoadingText("Loading wallet UTXOs for the unlock fee...");
+      const feeUtxos = await getAvailableUtxos(
+        wallet.address,
+        openApiKeyForRequests,
+        500,
+        wallet.chain,
       );
-      if (
-        !lockInscriptionUtxo ||
-        lockInscriptionUtxo.isSpent ||
-        lockInscriptionUtxo.isSpending
-      ) {
-        throw new Error(
-          "The recorded transfer inscription UTXO was not found or is no longer spendable. It may be unindexed, already moved, or on another network.",
-        );
-      }
       setLoadingText("Building the time-lock unlock transaction...");
       const tx = buildTimeLockUnlockTx({
         userAddress: wallet.address,
@@ -598,25 +583,7 @@ function App() {
     } catch (error) {
       let msg = getErrorMessage(error);
       if (isBip68NotFinalError(error)) {
-        try {
-          const currentHeight = await getBlockchainHeight(
-            openApiKeyForRequests,
-            wallet.chain,
-          );
-          const lockHeight = lockInscriptionUtxo?.height;
-          if (typeof lockHeight === "number" && lockHeight > 0) {
-            const confirmations = Math.max(0, currentHeight - lockHeight + 1);
-            const remaining = Math.max(0, record.lockBlocks - confirmations);
-            msg =
-              remaining > 0
-                ? `Time lock not yet mature: ${confirmations}/${record.lockBlocks} confirmations. Wait ${remaining} more block${remaining === 1 ? "" : "s"} before unlocking.`
-                : `The node still considers the time lock immature. Wait for the next block and try again (${confirmations}/${record.lockBlocks} confirmations).`;
-          } else {
-            msg = `Time lock not yet mature (non-BIP68-final). Wait for ${record.lockBlocks} confirmations before trying again.`;
-          }
-        } catch {
-          msg = `Time lock not yet mature (non-BIP68-final). Wait for ${record.lockBlocks} confirmations before trying again.`;
-        }
+        msg = `Time lock not yet mature (non-BIP68-final). Wait for ${record.lockBlocks} confirmations before trying again.`;
       }
       setResult({ status: "error", message: msg });
       messageApi.error(msg);
