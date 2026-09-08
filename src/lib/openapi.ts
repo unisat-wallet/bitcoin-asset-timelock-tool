@@ -82,7 +82,7 @@ export async function getAddressBrc20Balances(address: string, apiKey?: string, 
   const balances: Brc20Balance[] = []
   for (let start = 0; ; start += limit) {
     const data = await requestOpenApi<Brc20Summary>(
-      `/address/${encodeURIComponent(address)}/brc20/summary?start=${start}&limit=${limit}`,
+      `/address/${encodeURIComponent(address)}/brc20/summary?start=${start}&limit=${limit}&tick_filter=24&exclude_zero=true`,
       apiKey,
       chain,
     )
