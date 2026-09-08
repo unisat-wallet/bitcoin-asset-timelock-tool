@@ -150,8 +150,8 @@ The Rune edict assigns the locked amount to output `1`.
 
 If any Rune balance must remain outside the lock, the Runestone includes `Tag.Pointer = 2` and creates output `2` to the owner address. This is required if:
 
-- the selected Rune UTXO contains more of the locked Rune than the requested amount;
-- the selected Rune UTXO carries another Rune; or
+- the selected Rune UTXO(s) contain more of the locked Rune than the requested amount;
+- a selected Rune UTXO carries another Rune; or
 - an additional fee input carries a Rune.
 
 If no Rune balance is left unallocated, neither the pointer nor output `2` is created.

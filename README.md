@@ -7,7 +7,7 @@ A browser-based Taproot relative-block time-lock tool for Bitcoin assets. It sup
 ## Supported asset flows
 
 - **BRC-20 transfer inscription** — retains the original five-transaction Fractal flow: self-inscribe, move to the time lock, then inscribe at the time-lock address. The final inscription UTXO is script-path spent after the selected relative block count.
-- **Runes** — uses one standard Runestone transaction. A Rune `edict` assigns the requested base-unit amount to a 330-sat time-lock output. If the source UTXO has an unallocated remainder or other Runes, a 330-sat Rune-change output and Runestone `pointer` return those assets to the wallet; otherwise neither is created. The locked Rune output is later spent through the same Taproot CSV script.
+- **Runes** — uses one standard Runestone transaction. A Rune `edict` assigns the requested base-unit amount to a 330-sat time-lock output. The transaction can consume one or more source UTXOs. If those inputs have an unallocated remainder or other Runes, a 330-sat Rune-change output and Runestone `pointer` return those assets to the wallet; otherwise neither is created. The locked Rune output is later spent through the same Taproot CSV script.
 
 Every newly created lock also has a versioned recovery marker:
 
@@ -32,9 +32,9 @@ Mixed case and the wrong network's alphabet are rejected before signing. Amounts
 
 1. Connect UniSat on Bitcoin mainnet or Fractal Bitcoin.
 2. Enter either the Rune name or its Rune ID, the base-unit amount, and lock period.
-3. The app queries UniSat's Runes Indexer for canonical metadata and the address's transferable UTXOs, then automatically selects the smallest single UTXO that covers the requested amount.
+3. The app queries UniSat's Runes Indexer for canonical metadata and the address's transferable UTXOs. It uses the smallest single UTXO when possible; otherwise it automatically combines enough Rune UTXOs to cover the requested amount.
 4. Optionally select normal BTC/FB UTXOs for miner fees. The app checks selected fee inputs with the Runes Indexer; if any carry Runes, it retains a 330-sat Rune-change output and pointer to protect them.
-5. Review the PSBT. The lock output is Runestone output index `1`; recovery metadata is embedded in the Runestone at output `0`. A Rune-change output at index `2` exists only when the source UTXO has Rune assets that must remain in the wallet.
+5. Review the PSBT. The lock output is Runestone output index `1`; recovery metadata is embedded in the Runestone at output `0`. A Rune-change output at index `2` exists only when the source UTXO(s) have Rune assets that must remain in the wallet.
 6. Sign and broadcast. After the configured relative confirmations, use the local record to unlock.
 
 Never add unrelated asset UTXOs as fee inputs. A Rune UTXO may carry other Runes; the pointer intentionally returns all unallocated Rune balances to the Rune-change output.

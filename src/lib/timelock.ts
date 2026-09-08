@@ -192,6 +192,7 @@ function addOutputs(psbt: bitcoin.Psbt, outputs: OutputSpec[]) {
 
 function selectFunding(params: {
   utxos: OpenApiUtxo[]
+  requiredInputs?: OpenApiUtxo[]
   spend: number
   baseOutputs: OutputSpec[]
   changeAddress: string
@@ -199,15 +200,13 @@ function selectFunding(params: {
   feeRate: number
   chain?: ChainType | string
 }): { inputs: OpenApiUtxo[]; outputs: OutputSpec[]; fee: number } {
-  const selected: OpenApiUtxo[] = []
-  let total = 0
+  const selected = [...(params.requiredInputs || [])]
+  let total = selected.reduce((sum, utxo) => sum + utxo.satoshi, 0)
   const changeScript = scriptForAddress(params.changeAddress, params.chain)
-  for (const utxo of params.utxos) {
-    if (!isSpendable(utxo)) continue
-    selected.push(utxo)
-    total += utxo.satoshi
+  const requiredKeys = new Set(selected.map((utxo) => `${utxo.txid}:${utxo.vout}`))
+  const trySelect = () => {
     const feeWithoutChange = estimateFee(selected, params.baseOutputs, params.feeRate)
-    if (total < params.spend + feeWithoutChange) continue
+    if (total < params.spend + feeWithoutChange) return undefined
     const outputs = [...params.baseOutputs]
     const candidate = [...outputs, { type: params.changeType, address: params.changeAddress, satoshi: 0, script: changeScript }]
     const feeWithChange = estimateFee(selected, candidate, params.feeRate)
@@ -217,6 +216,15 @@ function selectFunding(params: {
       return { inputs: selected, outputs: candidate, fee: feeWithChange }
     }
     return { inputs: selected, outputs, fee: total - params.spend }
+  }
+  const preselected = trySelect()
+  if (preselected) return preselected
+  for (const utxo of params.utxos) {
+    if (requiredKeys.has(`${utxo.txid}:${utxo.vout}`) || !isSpendable(utxo)) continue
+    selected.push(utxo)
+    total += utxo.satoshi
+    const result = trySelect()
+    if (result) return result
   }
   throw new Error('Selected wallet UTXOs do not cover the inscription and network fees.')
 }
@@ -507,17 +515,19 @@ export function buildRuneTimeLockDeposit(params: {
   runeAmount: string
   runeBalance: string
   hasUnallocatedRunes: boolean
-  runeUtxo: OpenApiUtxo
+  runeUtxos: OpenApiUtxo[]
   feeUtxos: OpenApiUtxo[]
   feeRate: number
   chain?: ChainType | string
 }): BuiltRuneTimeLockDepositTx {
-  if (!isSpendable(params.runeUtxo)) throw new Error('Select a spendable Rune UTXO.')
+  if (!params.runeUtxos.length || params.runeUtxos.some((utxo) => !isSpendable(utxo))) throw new Error('Select one or more spendable Rune UTXOs.')
+  const runeUtxoKeys = new Set(params.runeUtxos.map((utxo) => `${utxo.txid}:${utxo.vout}`))
+  if (runeUtxoKeys.size !== params.runeUtxos.length) throw new Error('Each Rune UTXO can be used only once.')
   parseRuneId(params.runeId)
   const amount = params.runeAmount.trim()
   const balance = params.runeBalance.trim()
   if (!/^\d+$/.test(amount) || BigInt(amount) <= 0n) throw new Error('Rune amount must be a positive integer in base units.')
-  if (!/^\d+$/.test(balance) || BigInt(balance) < BigInt(amount)) throw new Error('Rune UTXO balance must be at least the lock amount.')
+  if (!/^\d+$/.test(balance) || BigInt(balance) < BigInt(amount)) throw new Error('Combined Rune UTXO balance must be at least the lock amount.')
   const network = networkForChain(params.chain)
   const timeLock = buildTimeLockPayment(params.pubKey, params.lockBlocks, params.chain)
   const userScript = scriptForAddress(params.userAddress, params.chain)
@@ -539,13 +549,16 @@ export function buildRuneTimeLockDeposit(params: {
     { type: 'timelock_transfer', address: timeLock.address, satoshi: RUNE_DUST_SATOSHI, script: timeLock.output },
   ]
   if (needsRuneChange) {
-    // The pointer keeps all non-edicted Rune balances on the source inputs out
-    // of the time lock, including other Rune IDs carried by the same UTXO.
+    // The pointer keeps all non-edicted Rune balances on every Rune source and
+    // fee input out of the time lock, including other Rune IDs.
     outputs.push({ type: 'rune_change', address: params.userAddress, satoshi: RUNE_DUST_SATOSHI, script: userScript })
   }
-  const uniqueInputs = [params.runeUtxo, ...params.feeUtxos.filter((utxo) => `${utxo.txid}:${utxo.vout}` !== `${params.runeUtxo.txid}:${params.runeUtxo.vout}`)]
+  const uniqueInputs = [...params.runeUtxos, ...params.feeUtxos].filter(
+    (utxo, index, all) => all.findIndex((candidate) => `${candidate.txid}:${candidate.vout}` === `${utxo.txid}:${utxo.vout}`) === index,
+  )
   const selection = selectFunding({
     utxos: uniqueInputs,
+    requiredInputs: params.runeUtxos,
     spend: 0,
     baseOutputs: outputs,
     changeAddress: params.userAddress,
@@ -559,7 +572,7 @@ export function buildRuneTimeLockDeposit(params: {
   return {
     kind: 'rune_timelock_deposit', timeLockAddress: timeLock.address,
     runeId: params.runeId.trim(), runeName: params.runeName.trim(), runeAmount: amount,
-    sourceOutpoint: `${params.runeUtxo.txid}:${params.runeUtxo.vout}`,
+    sourceOutpoints: params.runeUtxos.map((utxo) => `${utxo.txid}:${utxo.vout}`),
     psbtHex: psbt.toHex(), toSignInputs: toSignInputs(selection.inputs, params.pubKey),
     inputs: selection.inputs, outputs: outputRows(selection.outputs), estimatedFee: selection.fee,
   }

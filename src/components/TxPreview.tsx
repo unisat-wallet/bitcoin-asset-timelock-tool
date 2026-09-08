@@ -65,12 +65,12 @@ export function TxPreview({ builtTx }: { builtTx: BuiltTimeLockTx | null }) {
           <Descriptions.Item label="Rune">{builtTx.runeName}</Descriptions.Item>
           <Descriptions.Item label="Rune ID">{builtTx.runeId}</Descriptions.Item>
           <Descriptions.Item label="Locked base units">{builtTx.runeAmount}</Descriptions.Item>
-          <Descriptions.Item label="Rune source">{builtTx.sourceOutpoint}</Descriptions.Item>
+          <Descriptions.Item label="Rune sources">{builtTx.sourceOutpoints.join(", ")}</Descriptions.Item>
           <Descriptions.Item label="Inputs">{builtTx.inputs.length}</Descriptions.Item>
           <Descriptions.Item label="Estimated fee">{builtTx.estimatedFee} sats</Descriptions.Item>
         </Descriptions>
         <Typography.Paragraph type="secondary" className="mt-16">
-          A Rune-change output is present only when the source or an added fee input carries Rune balances that are not being locked.
+          A Rune-change output is present only when the sources or an added fee input carry Rune balances that are not being locked.
           The Runestone embeds a <code>BATL</code> recovery marker in its ignored Nop tag fields; no second OP_RETURN output is created.
         </Typography.Paragraph>
         <OutputRows outputs={builtTx.outputs} />

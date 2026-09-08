@@ -198,7 +198,7 @@ export type BuiltRuneTimeLockDepositTx = {
   runeId: string
   runeName: string
   runeAmount: string
-  sourceOutpoint: string
+  sourceOutpoints: string[]
   psbtHex: string
   toSignInputs: ToSignInput[]
   inputs: OpenApiUtxo[]

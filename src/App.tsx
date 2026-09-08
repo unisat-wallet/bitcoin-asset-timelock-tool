@@ -12,6 +12,7 @@ import type {
   OpenApiUtxo,
   ResultState,
   RuneIndexerEntry,
+  RuneIndexerUtxo,
   TimeLockBlocks,
   TimeLockRecord,
 } from "./types";
@@ -80,10 +81,10 @@ function validateRuneName(name: string, fractal: boolean): string | undefined {
 }
 
 function selectRuneUtxo(
-  runeUtxos: import("./types").RuneIndexerUtxo[],
+  runeUtxos: RuneIndexerUtxo[],
   metadata: RuneIndexerEntry,
   amount: string,
-): { utxo: OpenApiUtxo; balance: string; hasUnallocatedRunes: boolean } {
+): { utxos: OpenApiUtxo[]; balance: string; hasUnallocatedRunes: boolean } {
   if (!/^\d+$/.test(amount.trim()) || BigInt(amount.trim()) <= 0n)
     throw new Error("Rune amount must be a positive integer in base units.");
   const required = BigInt(amount.trim());
@@ -96,41 +97,57 @@ function selectRuneUtxo(
     .filter(
       (
         item,
-      ): item is { item: import("./types").RuneIndexerUtxo; balance: string } =>
+      ): item is { item: RuneIndexerUtxo; balance: string } =>
         typeof item.balance === "string" &&
         /^\d+$/.test(item.balance) &&
-        BigInt(item.balance) >= required,
-    )
-    .sort((left, right) =>
-      BigInt(left.balance) < BigInt(right.balance)
-        ? -1
-        : BigInt(left.balance) > BigInt(right.balance)
-          ? 1
-          : 0,
+        BigInt(item.balance) > 0n,
     );
-  const selected = candidates[0];
-  if (!selected)
+  const total = candidates.reduce(
+    (sum, candidate) => sum + BigInt(candidate.balance),
+    0n,
+  );
+  if (total < required)
     throw new Error(
-      `No single transferable ${metadata.rune} UTXO has at least ${amount.trim()} base units. Consolidate the Rune first or use a smaller amount.`,
+      `Transferable ${metadata.rune} balance is ${total.toString()} base units, which is less than the requested ${amount.trim()}.`,
     );
+
+  const compareCandidates = (
+    left: (typeof candidates)[number],
+    right: (typeof candidates)[number],
+  ) => {
+    const byBalance = BigInt(left.balance) < BigInt(right.balance) ? -1 : BigInt(left.balance) > BigInt(right.balance) ? 1 : 0;
+    return byBalance || left.item.txid.localeCompare(right.item.txid) || left.item.vout - right.item.vout;
+  };
+  // Preserve the previous low-input behavior when one source is enough. When
+  // it is not, the largest sources first give the smallest possible input count.
+  const single = [...candidates]
+    .filter((candidate) => BigInt(candidate.balance) >= required)
+    .sort(compareCandidates)[0];
+  const selected = single ? [single] : [];
+  let selectedBalance = single ? BigInt(single.balance) : 0n;
+  if (!single) {
+    for (const candidate of [...candidates].sort((left, right) => -compareCandidates(left, right))) {
+      if (selectedBalance >= required) break;
+      selected.push(candidate);
+      selectedBalance += BigInt(candidate.balance);
+    }
+  }
   return {
-    balance: selected.balance,
-    hasUnallocatedRunes: selected.item.runes.some(
+    balance: selectedBalance.toString(),
+    hasUnallocatedRunes: selected.some((candidate) => candidate.item.runes.some(
       (rune) =>
         rune.runeid !== metadata.runeid &&
         /^\d+$/.test(rune.amount) &&
         BigInt(rune.amount) > 0n,
-    ),
-    utxo: {
-      address: selected.item.address,
-      satoshi: selected.item.satoshi,
-      scriptPk: selected.item.scriptPk,
-      txid: selected.item.txid,
-      vout: selected.item.vout,
-      scriptType: selected.item.scriptPk.startsWith("5120")
-        ? "P2TR"
-        : undefined,
-    },
+    )),
+    utxos: selected.map(({ item }) => ({
+      address: item.address,
+      satoshi: item.satoshi,
+      scriptPk: item.scriptPk,
+      txid: item.txid,
+      vout: item.vout,
+      scriptType: item.scriptPk.startsWith("5120") ? "P2TR" : undefined,
+    })),
   };
 }
 
@@ -330,10 +347,11 @@ function App() {
           wallet.chain,
         );
         const source = selectRuneUtxo(runeUtxos, metadata, amount);
+        const sourceKeys = new Set(
+          source.utxos.map((utxo) => `${utxo.txid}:${utxo.vout}`),
+        );
         const feeInputs = walletUtxos.selectedUtxos.filter(
-          (utxo) =>
-            `${utxo.txid}:${utxo.vout}` !==
-            `${source.utxo.txid}:${source.utxo.vout}`,
+          (utxo) => !sourceKeys.has(`${utxo.txid}:${utxo.vout}`),
         );
         const feeInputRuneBalances = await Promise.all(
           feeInputs.map((utxo) =>
@@ -361,7 +379,7 @@ function App() {
           runeBalance: source.balance,
           hasUnallocatedRunes:
             source.hasUnallocatedRunes || feeInputsCarryRunes,
-          runeUtxo: source.utxo,
+          runeUtxos: source.utxos,
           feeUtxos: walletUtxos.selectedUtxos,
           feeRate,
           chain: wallet.chain,

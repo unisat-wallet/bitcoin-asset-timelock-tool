@@ -52,10 +52,10 @@ export function OperationPanel(props: Props) {
             showIcon
             message={props.assetKind === 'brc20'
               ? 'Deposit broadcasts five transactions: inscribe transfer to yourself (2) → send it to the time-lock address (1) → inscribe transfer at the time-lock address (2).'
-              : 'Rune deposit broadcasts one Runestone transaction. The Runes Indexer resolves the Rune name or ID and finds a sufficient transferable Rune UTXO. A Rune-change output and pointer are added only when some Rune balance must remain in your wallet.'}
+              : 'Rune deposit broadcasts one Runestone transaction. The Runes Indexer resolves the Rune name or ID and selects enough transferable Rune UTXOs. A Rune-change output and pointer are added only when some Rune balance must remain in your wallet.'}
             description={props.assetKind === 'brc20'
               ? 'All five transactions are signed before any are broadcast. The final transfer inscription can be unlocked after the configured relative block count.'
-              : 'Enter the exact base-unit amount. The tool selects the smallest indexed Rune UTXO that can cover it. Select normal BTC/FB UTXOs below only when extra fee funding is needed.'}
+              : 'Enter the exact base-unit amount. The tool uses the smallest indexed Rune UTXO that can cover it, or combines multiple Rune UTXOs when necessary. Select normal BTC/FB UTXOs below only when extra fee funding is needed.'}
           />
 
           <div className="step-panel">
