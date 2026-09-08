@@ -205,8 +205,9 @@ function App() {
   }, [records]);
 
   useEffect(() => {
+    if (!hasOpenApiKey || !wallet.connected || !wallet.chain) return;
     let cancelled = false;
-    void getRecommendedFeeRate(String(wallet.chain))
+    void getRecommendedFeeRate(String(wallet.chain), openApiKeyForRequests)
       .then((recommendedFeeRate) => {
         if (!cancelled && !feeRateManuallySet.current) {
           setFeeRate(recommendedFeeRate);
@@ -216,7 +217,7 @@ function App() {
     return () => {
       cancelled = true;
     };
-  }, [wallet.chain]);
+  }, [hasOpenApiKey, openApiKeyForRequests, wallet.chain, wallet.connected]);
 
   const timeLockAddress = useMemo(() => {
     if (!wallet.pubKey) return "";
