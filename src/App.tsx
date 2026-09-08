@@ -4,7 +4,7 @@ import {
   WalletOutlined,
 } from "@ant-design/icons";
 import { Alert, Button, Space, Spin, Typography, message } from "antd";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
   AddressBalance,
   AssetKind,
@@ -183,6 +183,7 @@ function App() {
   const [result, setResult] = useState<ResultState>({ status: "idle" });
   const [loadingText, setLoadingText] = useState("");
   const [records, setRecords] = useState<TimeLockRecord[]>(readRecords);
+  const feeRateManuallySet = useRef(false);
 
   const resetBuiltState = useCallback(() => {
     setBuiltTx(null);
@@ -210,7 +211,9 @@ function App() {
     let cancelled = false;
     void getRecommendedFeeRate(String(wallet.chain))
       .then((recommendedFeeRate) => {
-        if (!cancelled) setFeeRate(recommendedFeeRate);
+        if (!cancelled && !feeRateManuallySet.current) {
+          setFeeRate(recommendedFeeRate);
+        }
       })
       .catch(() => undefined);
     return () => {
@@ -259,6 +262,7 @@ function App() {
   const handleSwitchChain = async (chain: import("./types").ChainType) => {
     setLoadingText(`Switching UniSat to ${chain}...`);
     try {
+      feeRateManuallySet.current = false;
       await wallet.switchChain(chain);
       clearLoadedData();
       messageApi.success(
@@ -700,6 +704,7 @@ function App() {
             resetBuiltState();
           }}
           onFeeRateChange={(value) => {
+            feeRateManuallySet.current = true;
             setFeeRate(value);
             resetBuiltState();
           }}

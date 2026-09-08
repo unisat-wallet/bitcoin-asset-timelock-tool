@@ -10,6 +10,8 @@ const TAPLEAF_VERSION = 0xc0
 const INSCRIPTION_SATOSHI = 546
 const RUNE_DUST_SATOSHI = 330
 const DUST_THRESHOLD = 546
+// Retained for a legacy, unused builder below. Current deposit construction
+// estimates script-path witnesses with the serialized dummy transaction.
 const REVEAL_FEE_BUFFER_VBYTES = 100
 const REVEAL_FEE_BUFFER_MIN = 350
 // BIP341 NUMS internal key: no corresponding known private key. BATL outputs
@@ -75,28 +77,59 @@ function outputRows(outputs: OutputSpec[]): BuiltTxOutput[] {
   }))
 }
 
-function estimatedInputVSize(scriptType = ''): number {
-  const type = scriptType.toUpperCase()
-  if (type.includes('P2TR') || type.startsWith('5120')) return 58
-  if (type.includes('P2WPKH') && type.includes('P2SH')) return 91
-  if (type.includes('P2WPKH')) return 68
-  return 148
+type DummyFeeInput =
+  | { kind: 'wallet'; utxo: OpenApiUtxo }
+  | { kind: 'taproot_script_path'; payment: TapPayment }
+
+function isTaprootScript(script: Buffer): boolean {
+  return script.length === 34 && script.subarray(0, 2).toString('hex') === '5120'
 }
 
-function varIntSize(value: number): number {
-  if (value < 0xfd) return 1
-  if (value <= 0xffff) return 3
-  if (value <= 0xffffffff) return 5
-  return 9
+function isWitnessPubKeyHashScript(script: Buffer): boolean {
+  return script.length === 22 && script.subarray(0, 2).toString('hex') === '0014'
+}
+
+function dummyWalletWitness(utxo: OpenApiUtxo): Buffer[] {
+  const script = decodeScript(utxo.scriptPk)
+  if (isTaprootScript(script)) {
+    // UniSat signs these inputs with SIGHASH_DEFAULT, so the Schnorr signature
+    // occupies exactly 64 bytes in the final witness.
+    return [Buffer.alloc(64)]
+  }
+  if (isWitnessPubKeyHashScript(script)) {
+    // DER-encoded ECDSA signatures vary by up to two bytes. Reserve the
+    // standard maximum (72-byte DER + 1-byte sighash) so fees never fall short.
+    return [Buffer.alloc(73), Buffer.alloc(33)]
+  }
+  throw new Error('Only P2TR and native P2WPKH wallet inputs are supported.')
+}
+
+function estimateVSize(inputs: DummyFeeInput[], outputs: OutputSpec[]): number {
+  const tx = new bitcoin.Transaction()
+  tx.version = 2
+  inputs.forEach((input, index) => {
+    tx.addInput(Buffer.alloc(32), index)
+    if (input.kind === 'taproot_script_path') {
+      const leaf = input.payment.tapLeafScript[0]
+      tx.setWitness(index, [Buffer.alloc(64), leaf.script, leaf.controlBlock])
+    } else {
+      tx.setWitness(index, dummyWalletWitness(input.utxo))
+    }
+  })
+  outputs.forEach((output) => tx.addOutput(output.script, output.satoshi))
+  return tx.virtualSize()
+}
+
+function estimateFeeForInputs(inputs: DummyFeeInput[], outputs: OutputSpec[], feeRate: number): number {
+  return Math.ceil(estimateVSize(inputs, outputs) * Math.max(1, feeRate))
 }
 
 function estimateFee(inputs: OpenApiUtxo[], outputs: OutputSpec[], feeRate: number): number {
-  const outputVBytes = outputs.reduce(
-    (sum, output) => sum + 8 + varIntSize(output.script.length) + output.script.length,
-    0,
-  )
-  const inputVBytes = inputs.reduce((sum, input) => sum + estimatedInputVSize(input.scriptType), 0)
-  return Math.ceil((10 + inputVBytes + outputVBytes) * Math.max(1, feeRate))
+  return estimateFeeForInputs(inputs.map((utxo) => ({ kind: 'wallet', utxo })), outputs, feeRate)
+}
+
+function estimateTaprootScriptPathFee(payment: TapPayment, outputs: OutputSpec[], feeRate: number): number {
+  return estimateFeeForInputs([{ kind: 'taproot_script_path', payment }], outputs, feeRate)
 }
 
 function makeTapPayment(script: Buffer, chain?: ChainType | string): TapPayment {
@@ -193,6 +226,7 @@ function addOutputs(psbt: bitcoin.Psbt, outputs: OutputSpec[]) {
 function selectFunding(params: {
   utxos: OpenApiUtxo[]
   requiredInputs?: OpenApiUtxo[]
+  extraFeeInputs?: DummyFeeInput[]
   spend: number
   baseOutputs: OutputSpec[]
   changeAddress: string
@@ -205,27 +239,38 @@ function selectFunding(params: {
   const changeScript = scriptForAddress(params.changeAddress, params.chain)
   const requiredKeys = new Set(selected.map((utxo) => `${utxo.txid}:${utxo.vout}`))
   const trySelect = () => {
-    const feeWithoutChange = estimateFee(selected, params.baseOutputs, params.feeRate)
+    const feeInputs = [...(params.extraFeeInputs || []), ...selected.map((utxo) => ({ kind: 'wallet' as const, utxo }))]
+    const feeWithoutChange = estimateFeeForInputs(feeInputs, params.baseOutputs, params.feeRate)
     if (total < params.spend + feeWithoutChange) return undefined
     const outputs = [...params.baseOutputs]
     const candidate = [...outputs, { type: params.changeType, address: params.changeAddress, satoshi: 0, script: changeScript }]
-    const feeWithChange = estimateFee(selected, candidate, params.feeRate)
+    const feeWithChange = estimateFeeForInputs(feeInputs, candidate, params.feeRate)
     const change = total - params.spend - feeWithChange
     if (change >= DUST_THRESHOLD) {
       candidate[candidate.length - 1] = { ...candidate[candidate.length - 1], satoshi: change }
-      return { inputs: selected, outputs: candidate, fee: feeWithChange }
+      return { inputs: selected, outputs: candidate, fee: feeWithChange, hasChange: true }
     }
-    return { inputs: selected, outputs, fee: total - params.spend }
+    return { inputs: selected, outputs, fee: total - params.spend, hasChange: false }
   }
-  const preselected = trySelect()
+
+  let dustChangeFallback: { inputs: OpenApiUtxo[]; outputs: OutputSpec[]; fee: number } | undefined
+  const useSelection = () => {
+    const result = trySelect()
+    if (!result) return undefined
+    if (result.hasChange) return result
+    dustChangeFallback = result
+    return undefined
+  }
+  const preselected = useSelection()
   if (preselected) return preselected
   for (const utxo of params.utxos) {
     if (requiredKeys.has(`${utxo.txid}:${utxo.vout}`) || !isSpendable(utxo)) continue
     selected.push(utxo)
     total += utxo.satoshi
-    const result = trySelect()
+    const result = useSelection()
     if (result) return result
   }
+  if (dustChangeFallback) return dustChangeFallback
   throw new Error('Selected wallet UTXOs do not cover the inscription and network fees.')
 }
 
@@ -444,7 +489,6 @@ export function buildSingleUtxoTimeLockDeposit(params: {
   const inscription = buildInscriptionPayment(params.pubKey, transferContent, params.chain)
   const root = params.fundingUtxo
   const rootLike = { ...root, scriptPk: userScript.toString('hex') }
-  const scriptPathLike = [{ txid: '00'.repeat(32), vout: 0, satoshi: 0, scriptPk: '', scriptType: 'P2TR' }]
   const selfInscription: OutputSpec = { type: 'timelock_transfer', address: userAddress, satoshi: INSCRIPTION_SATOSHI, script: userScript }
   const lockedInscription: OutputSpec = { type: 'timelock_transfer', address: timeLock.address, satoshi: INSCRIPTION_SATOSHI, script: timeLock.output }
   const recoveryMetadata = buildRecoveryMetadataOutput(params.pubKey, userAddress, params.lockBlocks)
@@ -452,10 +496,10 @@ export function buildSingleUtxoTimeLockDeposit(params: {
   const firstChangeTemplate: OutputSpec = { type: 'timelock_commit_change', address: userAddress, satoshi: 0, script: userScript }
   const fee1 = estimateFee([rootLike], [commitTemplate, firstChangeTemplate], params.feeRate)
   const fundingTemplate: OutputSpec = { type: 'timelock_reveal_change', address: userAddress, satoshi: 0, script: userScript }
-  const fee2 = estimateFee(scriptPathLike, [selfInscription, fundingTemplate], params.feeRate) + Math.max(REVEAL_FEE_BUFFER_MIN, params.feeRate * REVEAL_FEE_BUFFER_VBYTES)
+  const fee2 = estimateTaprootScriptPathFee(inscription, [selfInscription, fundingTemplate], params.feeRate)
   const fee3 = estimateFee([rootLike, rootLike], [lockedInscription, fundingTemplate], params.feeRate)
   const fee4 = estimateFee([rootLike], [{ type: 'timelock_commit', address: inscription.address, satoshi: 0, script: inscription.output }], params.feeRate)
-  const fee5 = estimateFee(scriptPathLike, [lockedInscription, recoveryMetadata], params.feeRate) + Math.max(REVEAL_FEE_BUFFER_MIN, params.feeRate * REVEAL_FEE_BUFFER_VBYTES)
+  const fee5 = estimateTaprootScriptPathFee(inscription, [lockedInscription, recoveryMetadata], params.feeRate)
   const totalEstimatedFee = fee1 + fee2 + fee3 + fee4 + fee5
   const minimum = INSCRIPTION_SATOSHI * 2 + totalEstimatedFee + DUST_THRESHOLD
   if (root.satoshi < minimum) throw new Error(`The selected UTXO needs at least ${minimum} sats for this 5-transaction flow.`)
@@ -559,7 +603,9 @@ export function buildRuneTimeLockDeposit(params: {
   const selection = selectFunding({
     utxos: uniqueInputs,
     requiredInputs: params.runeUtxos,
-    spend: 0,
+    // Rune source inputs fund the lock and Rune-change outputs. Include their
+    // full value here so it is deducted before calculating the fee change.
+    spend: outputs.reduce((total, output) => total + output.satoshi, 0),
     baseOutputs: outputs,
     changeAddress: params.userAddress,
     changeType: 'timelock_fee_change',
@@ -603,6 +649,7 @@ export function buildTimeLockUnlockTx(params: {
   }
   const feeSelection = selectFunding({
     utxos: params.feeUtxos.filter((utxo) => `${utxo.txid}:${utxo.vout}` !== `${params.inscriptionUtxo.txid}:${params.inscriptionUtxo.vout}`),
+    extraFeeInputs: [{ kind: 'taproot_script_path', payment }],
     spend: 0,
     baseOutputs: [principalOutput],
     changeAddress: params.userAddress,
