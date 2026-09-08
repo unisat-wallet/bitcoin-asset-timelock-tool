@@ -142,6 +142,7 @@ export function OperationPanel(props: Props) {
                   {record.transferToLockTxid && <span>3/5 Send to time lock: {shortAddress(record.transferToLockTxid, 12, 12)}</span>}
                   {record.lockCommitTxid && <span>4/5 Time-lock transfer commit: {shortAddress(record.lockCommitTxid, 12, 12)}</span>}
                   {record.lockRevealTxid && <span>5/5 Time-lock transfer reveal: {shortAddress(record.lockRevealTxid, 12, 12)}</span>}
+                  {record.unlockTxid && <span>Unlock transaction: <a href={getTransactionExplorerUrl(record.unlockTxid, record.chain)} target="_blank" rel="noreferrer">{shortAddress(record.unlockTxid, 12, 12)}</a></span>}
                   <span>Created: {new Date(record.createdAt).toLocaleString()}</span>
                 </Space>}
               />
