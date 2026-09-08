@@ -2,6 +2,8 @@
 
 A browser-based Taproot relative-block time-lock tool for Bitcoin assets. It supports Fractal BRC-20 `transfer` inscriptions and Runes on either Bitcoin mainnet or Fractal Bitcoin. Transactions are built locally; UniSat only signs and broadcasts them.
 
+[Open the live app](https://unisat-wallet.github.io/bitcoin-asset-timelock-tool/)
+
 ## Supported asset flows
 
 - **BRC-20 transfer inscription** — retains the original five-transaction Fractal flow: self-inscribe, move to the time lock, then inscribe at the time-lock address. The final inscription UTXO is script-path spent after the selected relative block count.
