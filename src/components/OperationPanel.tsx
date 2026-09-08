@@ -10,10 +10,11 @@ type Props = {
   ticker: string
   brc20Balances: Brc20Balance[]
   brc20BalancesLoading: boolean
+  runeBalances: import('../types').RuneIndexerBalance[]
+  runeBalancesLoading: boolean
   amount: string
   assetKind: AssetKind
   runeReference: string
-  fractalNetwork: boolean
   lockBlocks: TimeLockBlocks
   feeRate: number
   timeLockAddress: string
@@ -49,7 +50,7 @@ export function OperationPanel(props: Props) {
             showIcon
             message={props.assetKind === 'brc20'
               ? 'Deposit broadcasts five transactions: inscribe transfer to yourself (2) → send it to the time-lock address (1) → inscribe transfer at the time-lock address (2).'
-              : 'Rune deposit broadcasts one Runestone transaction. The Runes Indexer resolves the Rune name or ID and selects enough transferable Rune UTXOs. Automatic fee funding always includes a Rune-change output and pointer as a safety measure.'}
+              : 'Rune deposit broadcasts one Runestone transaction. Select a Rune held by the connected wallet; the tool then selects enough transferable Rune UTXOs. Automatic fee funding always includes a Rune-change output and pointer as a safety measure.'}
             description={props.assetKind === 'brc20'
               ? 'All five transactions are signed before any are broadcast. The tool refreshes and automatically uses the largest available wallet UTXO; it must be large enough to fund the flow. The final transfer inscription can be unlocked after the configured relative block count.'
               : 'Enter the exact base-unit amount. The tool uses the smallest indexed Rune UTXO that can cover it, or combines multiple Rune UTXOs when necessary. When extra fee funding is needed, it automatically uses the current available wallet UTXOs.'}
@@ -59,10 +60,10 @@ export function OperationPanel(props: Props) {
             <Typography.Title level={5}>{props.assetKind === 'brc20' ? 'Configure BRC-20 Time Lock' : 'Configure Rune Time Lock'}</Typography.Title>
             <div className="configuration-form">
               <div className="configuration-row">
-                <label className="field-label">{props.assetKind === 'brc20' ? 'Token Tick' : `Rune Name or Rune ID (${props.fractalNetwork ? 'Fractal: lowercase' : 'Bitcoin: uppercase'})`}</label>
+                <label className="field-label">{props.assetKind === 'brc20' ? 'Token Tick' : 'Rune'}</label>
                 {props.assetKind === 'brc20'
                   ? <Select value={props.ticker || undefined} placeholder="Select a wallet BRC-20 token" loading={props.brc20BalancesLoading} options={props.brc20Balances.map((balance) => ({ value: balance.ticker, label: `${balance.ticker} (Available: ${balance.availableBalance})` }))} onChange={props.onTickerChange} />
-                  : <Input value={props.runeReference} onChange={(event) => props.onRuneReferenceChange(event.target.value)} placeholder={props.fractalNetwork ? 'fractal or 21000:1' : 'UNCOMMONGOODS or 840000:1'} />}
+                  : <Select value={props.runeReference || undefined} placeholder="Select a wallet Rune" loading={props.runeBalancesLoading} options={props.runeBalances.map((balance) => ({ value: balance.runeid, label: `${balance.spacedRune || balance.rune || balance.runeid} (${balance.runeid}; Available: ${balance.amount})` }))} onChange={props.onRuneReferenceChange} />}
               </div>
               <div className="configuration-row">
                 <label className="field-label">Transfer Amount{props.assetKind === 'runes' ? ' (base units)' : ''}</label>

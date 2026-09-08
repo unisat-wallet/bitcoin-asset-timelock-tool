@@ -10,6 +10,7 @@ import type {
   AssetKind,
   OpenApiUtxo,
   ResultState,
+  RuneIndexerBalance,
   RuneIndexerEntry,
   RuneIndexerUtxo,
   TimeLockBlocks,
@@ -24,6 +25,7 @@ import {
 import {
   getAddressBalance,
   getAddressBrc20Balances,
+  getAddressRuneBalances,
   getAddressRuneUtxos,
   getAvailableUtxos,
   getBrc20AvailableBalance,
@@ -41,7 +43,6 @@ import { useWalletUtxos } from "./hooks/useWalletUtxos";
 import { useWalletConnection } from "./hooks/useWalletConnection";
 import { WalletInfoCard } from "./components/WalletInfoCard";
 import { OperationPanel } from "./components/OperationPanel";
-import { isFractalChain } from "./lib/chain";
 import { isSelectableUtxo } from "./lib/utxo";
 
 const TIMELOCK_STORAGE_KEY = "bitcoin_asset_timelock_records";
@@ -73,17 +74,6 @@ function isBip68NotFinalError(error: unknown): boolean {
 function isAlreadyBroadcastError(error: unknown): boolean {
   const message = getErrorMessage(error).toLowerCase();
   return /already.*(mempool|known|block chain|exists)|txn-already-known/.test(message);
-}
-
-function validateRuneName(name: string, fractal: boolean): string | undefined {
-  const value = name.trim();
-  if (!value) return "Enter the Rune name as a network safety check.";
-  const expected = fractal ? /^[a-z]+$/ : /^[A-Z]+$/;
-  if (!expected.test(value))
-    return fractal
-      ? "Fractal Runes use lowercase letters only (for example fractal)."
-      : "Bitcoin Runes use uppercase letters only (for example UNCOMMONGOODS).";
-  return undefined;
 }
 
 function compareDecimalAmounts(left: string, right: string): number {
@@ -197,6 +187,8 @@ function App() {
   const [amount, setAmount] = useState("");
   const [brc20Balances, setBrc20Balances] = useState<Brc20Balance[]>([]);
   const [brc20BalancesLoading, setBrc20BalancesLoading] = useState(false);
+  const [runeBalances, setRuneBalances] = useState<RuneIndexerBalance[]>([]);
+  const [runeBalancesLoading, setRuneBalancesLoading] = useState(false);
   const [assetKind, setAssetKind] = useState<AssetKind>("brc20");
   const [runeReference, setRuneReference] = useState("");
   const [lockBlocks, setLockBlocks] = useState<TimeLockBlocks>(3);
@@ -270,6 +262,37 @@ function App() {
       })
       .finally(() => {
         if (!cancelled) setBrc20BalancesLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [assetKind, hasOpenApiKey, openApiKeyForRequests, wallet.address, wallet.chain, wallet.connected]);
+
+  useEffect(() => {
+    if (assetKind !== "runes" || !hasOpenApiKey || !wallet.connected || !wallet.address || !wallet.chain) {
+      setRuneBalances([]);
+      setRuneBalancesLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setRuneBalancesLoading(true);
+    void getAddressRuneBalances(
+      wallet.address,
+      openApiKeyForRequests,
+      wallet.chain,
+    )
+      .then((balances) => {
+        if (!cancelled) {
+          setRuneBalances(balances.filter((balance) =>
+            /^\d+$/.test(balance.amount) && BigInt(balance.amount) > 0n,
+          ));
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setRuneBalances([]);
+      })
+      .finally(() => {
+        if (!cancelled) setRuneBalancesLoading(false);
       });
     return () => {
       cancelled = true;
@@ -532,22 +555,12 @@ function App() {
       );
       walletUtxos.setFetchedUtxos(currentWalletUtxos);
       if (assetKind === "runes") {
-        const fractal = isFractalChain(String(wallet.chain));
-        if (!/^\d+:\d+$/.test(runeReference.trim())) {
-          const runeError = validateRuneName(runeReference, fractal);
-          if (runeError) throw new Error(runeError);
-        }
         setLoadingText("Looking up Rune metadata and transferable UTXOs...");
         const metadata = await getRuneMetadata(
           runeReference,
           openApiKeyForRequests,
           wallet.chain,
         );
-        const metadataNameError = validateRuneName(metadata.rune, fractal);
-        if (metadataNameError)
-          throw new Error(
-            `The resolved Rune does not match the connected network: ${metadataNameError}`,
-          );
         const runeUtxos = await getAddressRuneUtxos(
           wallet.address,
           metadata.runeid,
@@ -858,10 +871,11 @@ function App() {
           ticker={ticker}
           brc20Balances={brc20Balances}
           brc20BalancesLoading={brc20BalancesLoading}
+          runeBalances={runeBalances}
+          runeBalancesLoading={runeBalancesLoading}
           amount={amount}
           assetKind={assetKind}
           runeReference={runeReference}
-          fractalNetwork={isFractalChain(String(wallet.chain))}
           lockBlocks={lockBlocks}
           feeRate={feeRate}
           timeLockAddress={timeLockAddress}
@@ -884,6 +898,7 @@ function App() {
           }}
           onRuneReferenceChange={(value) => {
             setRuneReference(value);
+            setAmount("");
             resetBuiltState();
           }}
           onLockBlocksChange={(value) => {

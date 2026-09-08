@@ -77,6 +77,11 @@ type Brc20Summary = {
   detail?: Brc20Balance[]
 }
 
+type RuneBalanceList = {
+  total?: number
+  detail?: RuneIndexerBalance[]
+}
+
 export async function getAddressBrc20Balances(address: string, apiKey?: string, chain?: ChainType | string): Promise<Brc20Balance[]> {
   const limit = 100
   const balances: Brc20Balance[] = []
@@ -98,6 +103,22 @@ export async function getBrc20AvailableBalance(address: string, ticker: string, 
   const balance = (await getAddressBrc20Balances(address, apiKey, chain))
     .find((item) => item.ticker.trim().toLowerCase() === normalizedTicker)
   return balance?.availableBalance || "0"
+}
+
+/** Returns every Rune with a positive indexed balance at an address. */
+export async function getAddressRuneBalances(address: string, apiKey?: string, chain?: ChainType | string): Promise<RuneIndexerBalance[]> {
+  const limit = 100
+  const balances: RuneIndexerBalance[] = []
+  for (let start = 0; ; start += limit) {
+    const data = await requestOpenApi<RuneBalanceList>(
+      `/address/${encodeURIComponent(address)}/runes/balance-list?start=${start}&limit=${limit}`,
+      apiKey,
+      chain,
+    )
+    const page = Array.isArray(data.detail) ? data.detail : []
+    balances.push(...page)
+    if (page.length < limit || start + page.length >= (data.total || 0)) return balances
+  }
 }
 
 export async function getAvailableUtxos(address: string, apiKey?: string, size = 500, chain?: ChainType | string): Promise<OpenApiUtxo[]> {
