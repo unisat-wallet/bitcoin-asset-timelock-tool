@@ -4,6 +4,31 @@ A browser-based Taproot relative-block time-lock tool for Bitcoin assets. It sup
 
 [Open the live app](https://unisat-wallet.github.io/bitcoin-asset-timelock-tool/)
 
+## Features
+
+- Lock BRC-20 or Runes assets on-chain for a configurable period, measured in relative blocks.
+- Include a public `OP_RETURN` time-lock marker using the open [BATL protocol](docs/BATL-PROTOCOL.md).
+- View the lock status and details of locked assets in the UniScan block explorer.
+- Support Bitcoin and Fractal Bitcoin mainnets and testnets.
+
+## Screenshots
+
+### Create and manage asset time locks
+
+Connect a wallet, configure an asset time lock, and manage local records to unlock assets once the lock period has elapsed.
+
+![App interface showing wallet setup, BRC-20 time-lock configuration, and local unlock records](https://github.com/user-attachments/assets/cc4d88b4-2916-4c40-969b-c40d4af2f93a)
+
+### Inspect locked assets in UniScan
+
+UniScan identifies the public time-lock marker and the locked asset output in the transaction view.
+
+![UniScan transaction view highlighting the Bitcoin Asset Time Lock marker and locked Runes output](https://github.com/user-attachments/assets/090b36da-3ac8-447d-8b40-48fbffd1da9d)
+
+The lock details show the BATL protocol version, asset type, relative lock period, owner address, and locked output.
+
+![UniScan time-lock details showing a verified Runes lock output with a three-block relative lock](https://github.com/user-attachments/assets/38dca86f-7b05-4c33-80d3-b06e66634493)
+
 ## Supported asset flows
 
 - **BRC-20 transfer inscription** — retains the original five-transaction Fractal flow: self-inscribe, move to the time lock, then inscribe at the time-lock address. The final inscription UTXO is script-path spent after the selected relative block count.
