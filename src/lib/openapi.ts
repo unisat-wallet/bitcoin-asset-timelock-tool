@@ -99,9 +99,8 @@ export async function getAddressBrc20Balances(address: string, apiKey?: string, 
 
 /** Returns the address's confirmed BRC-20 available balance for a ticker. */
 export async function getBrc20AvailableBalance(address: string, ticker: string, apiKey?: string, chain?: ChainType | string): Promise<string> {
-  const normalizedTicker = ticker.trim().toLowerCase()
   const balance = (await getAddressBrc20Balances(address, apiKey, chain))
-    .find((item) => item.ticker.trim().toLowerCase() === normalizedTicker)
+    .find((item) => item.ticker === ticker)
   return balance?.availableBalance || "0"
 }
 

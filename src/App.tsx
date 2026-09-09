@@ -316,7 +316,7 @@ function App() {
   const canCreate =
     assetKind === "brc20"
       ? canFetchUtxos &&
-        !!ticker.trim() &&
+        !!ticker &&
         !!amount.trim()
       : canFetchUtxos && !!runeReference.trim() && !!amount.trim();
   const loading = !!loadingText;
@@ -543,7 +543,7 @@ function App() {
         );
         if (compareDecimalAmounts(availableBalance, amount) < 0) {
           throw new Error(
-            `BRC-20 available balance for ${ticker.trim().toLowerCase()} is ${availableBalance}, which is less than the requested lock amount of ${amount.trim()}.`,
+            `BRC-20 available balance for ${ticker} is ${availableBalance}, which is less than the requested lock amount of ${amount.trim()}.`,
           );
         }
       }
@@ -648,7 +648,7 @@ function App() {
       });
       setLoadingText("");
       if (!(await confirmLock({
-        asset: `${amount.trim()} ${ticker.trim().toLowerCase()}`,
+        asset: `${amount.trim()} ${ticker}`,
         timeLockAddress: deposit.timeLockAddress,
         estimatedCost: deposit.totalEstimatedFee,
       }))) return;
@@ -664,7 +664,7 @@ function App() {
         ownerAddress: wallet.address,
         chain: wallet.chain,
         assetKind: "brc20",
-        ticker: ticker.trim().toLowerCase(),
+        ticker,
         amount: amount.trim(),
         lockBlocks,
         timeLockAddress: deposit.timeLockAddress,

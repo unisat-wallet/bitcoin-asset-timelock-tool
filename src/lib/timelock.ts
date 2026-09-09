@@ -297,16 +297,14 @@ export function deriveTimeLockAddress(pubKey: string, lockBlocks: TimeLockBlocks
 }
 
 export function buildBrc20TransferContent(ticker: string, amount: string): string {
-  const sourceTick = ticker.trim()
-  const tick = sourceTick.toLowerCase()
   const amt = amount.trim()
-  if (!sourceTick) {
+  if (!ticker) {
     throw new Error('Enter a BRC-20 ticker.')
   }
   if (!/^\d+(\.\d+)?$/.test(amt) || /^0+(?:\.0+)?$/.test(amt)) {
     throw new Error('Enter a positive BRC-20 amount.')
   }
-  return JSON.stringify({ p: 'brc-20', op: 'transfer', tick, amt })
+  return JSON.stringify({ p: 'brc-20', op: 'transfer', tick: ticker, amt })
 }
 
 function buildTimeLockCreateTx(params: {
