@@ -46,6 +46,7 @@ import { OperationPanel } from "./components/OperationPanel";
 import { isSelectableUtxo } from "./lib/utxo";
 
 const TIMELOCK_STORAGE_KEY = "bitcoin_asset_timelock_records";
+const BUILD_COMMIT_HASH = __BUILD_COMMIT_HASH__;
 
 function readRecords(): TimeLockRecord[] {
   try {
@@ -916,6 +917,9 @@ function App() {
           onCopy={handleCopy}
         />
       </section>
+      <footer className="build-footer">
+        Build commit: <code>{BUILD_COMMIT_HASH}</code>
+      </footer>
     </main>
   );
 }

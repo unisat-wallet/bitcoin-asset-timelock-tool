@@ -22,6 +22,8 @@ input {
 }
 
 .app-shell {
+  display: flex;
+  flex-direction: column;
   min-height: 100vh;
   padding: 32px 16px;
   background:
@@ -32,6 +34,20 @@ input {
 .tool-panel {
   width: min(1120px, 100%);
   margin: 0 auto;
+}
+
+.build-footer {
+  width: min(1120px, 100%);
+  margin: auto auto 0;
+  padding-top: 24px;
+  color: #667085;
+  font-size: 12px;
+  text-align: center;
+}
+
+.build-footer code {
+  color: inherit;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
 }
 
 .topbar {
