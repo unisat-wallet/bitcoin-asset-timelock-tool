@@ -1,6 +1,10 @@
 # Bitcoin Asset Time Lock
 
-A browser-based Taproot relative-block time-lock tool for Bitcoin assets. It supports Fractal BRC-20 `transfer` inscriptions and Runes on either Bitcoin mainnet or Fractal Bitcoin. Transactions are built locally; UniSat only signs and broadcasts them.
+A browser-based Taproot relative-block time-lock tool for Bitcoin assets. It supports Fractal BRC-20 `transfer` inscriptions and Runes on either Bitcoin mainnet or Fractal Bitcoin.
+
+Note:
+
+- Transactions are built locally in your browser. You review and authorize signing in your own UniSat Wallet, which signs locally using your private keys and broadcasts the signed transactions. Your private keys remain in your wallet and are never exposed to this tool or its developers.
 
 [Open the live app](https://unisat-wallet.github.io/bitcoin-asset-timelock-tool/)
 
@@ -93,7 +97,7 @@ npm run build
 - Verify the asset, Rune ID, correct network-case Rune name, amounts, lock address, UTXO outpoints, fee rate, and outputs in UniSat before signing.
 - Records are held in browser LocalStorage only. Save lock transaction IDs and outpoints independently.
 - The tool uses UniSat's Runes Indexer to resolve the asset and select an indexed transferable UTXO, then builds the PSBT locally. Its state can change before broadcast, so review the displayed source outpoint and the wallet's final signing preview.
-- The tool never requests seed phrases or private keys.
+- The tool never requests or has access to your seed phrase or private keys. Signing takes place locally in your own UniSat Wallet after your approval.
 
 ## License
 
